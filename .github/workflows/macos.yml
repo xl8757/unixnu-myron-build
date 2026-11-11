@@ -312,6 +312,15 @@ jobs:
             exit 1
           fi
 
+      - name: Upload firmware
+        if: contains(inputs.steps, 'firmware')
+        uses: actions/upload-artifact@v4
+        with:
+          name: unixnu-firmware-${{ inputs.defconfig }}
+          path: uefi/Build/*/*/FV/*.fd
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build boot image
         if: contains(inputs.steps, 'bootimg')
         env:
