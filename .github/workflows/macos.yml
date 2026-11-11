@@ -16,7 +16,7 @@ on:
         required: true
         default: sheng_defconfig
       steps:
-        description: Steps to run (space-separated: kernel userdata payload firmware bootimg)
+        description: "Steps to run (space-separated: kernel userdata payload firmware bootimg)"
         required: true
         default: kernel userdata
       target:
