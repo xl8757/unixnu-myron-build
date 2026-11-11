@@ -16,14 +16,44 @@ on:
         required: true
         default: sheng_defconfig
       steps:
-        description: Steps to run
+        description: Steps to run (space-separated: kernel userdata payload firmware bootimg)
+        required: true
+        default: kernel userdata
+      target:
+        description: EDK II target for the firmware
         type: choice
         options:
-          - kernel
-          - kernel userdata
-          - kernel payload
-          - kernel userdata payload
-        default: kernel userdata
+          - RELEASE
+          - DEBUG
+        default: RELEASE
+      uefi_repository:
+        description: Mu-Silicium base repository for the firmware and the BootShim
+        required: false
+        default: Project-Silicium/Mu-Silicium
+      uefi_ref:
+        description: Mu-Silicium commit or ref to pin the firmware and the BootShim to
+        required: false
+        default: 46e4ac0800862fb3ee6da09f0028fbef4e767648
+      uefi_package_repository:
+        description: Board UEFI package overlay (Platforms/ and Resources/)
+        required: false
+        default: xl8757/myron-uefi
+      uefi_package_ref:
+        description: Board UEFI package ref
+        required: false
+        default: main
+      bootshim_repository:
+        description: Repository with the official UniXNU BootShim.S (I-cache sync and image_size)
+        required: false
+        default: UniXNU/uefi-sheng
+      bootshim_ref:
+        description: Official BootShim commit or ref
+        required: false
+        default: 66421cb7bb5694843aec8de1ca3d1de4c20cca38
+      dtb:
+        description: Device tree in the device repository (empty uses the UEFI package's Resources/DTBs/<board>.dtb)
+        required: false
+        default: inputs/canoe.dtb
       ipsw_url:
         description: IPSW URL (empty uses board.toml)
         required: false
@@ -92,6 +122,17 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Check the steps
+        env:
+          STEPS: ${{ inputs.steps }}
+        run: |
+          for step in $STEPS; do
+            case "$step" in
+              kernel|userdata|payload|firmware|bootimg) ;;
+              *) echo "::error::unknown step: $step"; exit 1 ;;
+            esac
+          done
+
       - name: Report the runner toolchain
         run: |
           sw_vers
@@ -117,6 +158,49 @@ jobs:
           ./unixnu defconfig "${{ inputs.defconfig }}" -D "$GITHUB_WORKSPACE/device"
           ./unixnu fetch xnu libplatform libdispatch AvailabilityVersions libpthread \
                           corecrypto-2023 IOStorageFamily -D "$GITHUB_WORKSPACE/device"
+
+      # The firmware step builds a Mu-Silicium checkout, and the boot image step compiles the BootShim from
+      # the same checkout. The board package (Platforms/ and Resources/) is an overlay on that base, and the
+      # BootShim is the official UniXNU one: it publishes the copied firmware volume to the instruction cache
+      # before the jump, and its ARM64 header describes the shim plus the volume (the assertion in bootimg.py).
+      - name: Check out the UEFI tree
+        if: contains(inputs.steps, 'firmware') || contains(inputs.steps, 'bootimg')
+        env:
+          UEFI_REPOSITORY: ${{ inputs.uefi_repository }}
+          UEFI_REF: ${{ inputs.uefi_ref }}
+        run: |
+          git init -q uefi
+          git -C uefi remote add origin "https://github.com/${UEFI_REPOSITORY}.git"
+          git -C uefi fetch -q --depth 1 origin "$UEFI_REF"
+          git -C uefi -c advice.detachedHead=false checkout -q --detach FETCH_HEAD
+          git -C uefi submodule update -q --init --recursive --depth 1
+          echo "Mu-Silicium $(git -C uefi rev-parse HEAD)"
+
+      - name: Overlay the board UEFI package
+        if: contains(inputs.steps, 'firmware') || contains(inputs.steps, 'bootimg')
+        env:
+          UEFI_PACKAGE_REPOSITORY: ${{ inputs.uefi_package_repository }}
+          UEFI_PACKAGE_REF: ${{ inputs.uefi_package_ref }}
+        run: |
+          git init -q uefi-package
+          git -C uefi-package remote add origin "https://github.com/${UEFI_PACKAGE_REPOSITORY}.git"
+          git -C uefi-package fetch -q --depth 1 origin "$UEFI_PACKAGE_REF"
+          git -C uefi-package -c advice.detachedHead=false checkout -q --detach FETCH_HEAD
+          cp -R uefi-package/Platforms/. uefi/Platforms/
+          cp -R uefi-package/Resources/. uefi/Resources/
+          echo "board package $(git -C uefi-package rev-parse HEAD)"
+
+      - name: Use the official UniXNU BootShim
+        if: contains(inputs.steps, 'bootimg')
+        env:
+          BOOTSHIM_REPOSITORY: ${{ inputs.bootshim_repository }}
+          BOOTSHIM_REF: ${{ inputs.bootshim_ref }}
+        run: |
+          curl -fsSL --retry 3 \
+            "https://raw.githubusercontent.com/${BOOTSHIM_REPOSITORY}/${BOOTSHIM_REF}/BootShim/BootShim.S" \
+            -o uefi/BootShim/BootShim.S
+          grep -q 'dc    cvac' uefi/BootShim/BootShim.S
+          grep -q 'FD_SIZE + (_Payload - _Head)' uefi/BootShim/BootShim.S
 
       - name: Prepare inputs
         env:
@@ -186,6 +270,37 @@ jobs:
           if [ -n "$UNIQUE_CHIP_ID" ]; then args+=(--unique-chip-id "$UNIQUE_CHIP_ID"); fi
           if [ "$SKIP_SETUP" = "true" ]; then args+=(--skip-setup); fi
           ./unixnu build payload "${args[@]}"
+
+      - name: Build firmware
+        if: contains(inputs.steps, 'firmware')
+        env:
+          UEFI_TARGET: ${{ inputs.target }}
+        run: |
+          ./unixnu build firmware --uefi "$GITHUB_WORKSPACE/uefi" \
+            --edk2 "$GITHUB_WORKSPACE/uefi/Mu_Basecore" --target "$UEFI_TARGET"
+
+      - name: Build boot image
+        if: contains(inputs.steps, 'bootimg')
+        env:
+          UEFI_TARGET: ${{ inputs.target }}
+          DTB: ${{ inputs.dtb }}
+        run: |
+          if [ -n "$DTB" ]; then
+            dtb="$GITHUB_WORKSPACE/device/$DTB"
+          else
+            dtb="$GITHUB_WORKSPACE/uefi/Resources/DTBs/myron.dtb"
+          fi
+          ./unixnu bootimg --uefi "$GITHUB_WORKSPACE/uefi" --dtb "$dtb" --target "$UEFI_TARGET"
+          cat out/*/boot/boot.json
+
+      - name: Upload boot image
+        if: contains(inputs.steps, 'bootimg')
+        uses: actions/upload-artifact@v4
+        with:
+          name: unixnu-boot-${{ inputs.defconfig }}
+          path: out/*/boot/**
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload kernel and payload
         uses: actions/upload-artifact@v4
