@@ -71,6 +71,11 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 360
+    env:
+      # The DriverKit header restore reads api.github.com, and anonymous calls from the shared runner
+      # addresses are capped at 60 an hour; hand the job the workflow token so the lookups are counted
+      # against it instead (scripts/prepare-xnu-source.py sends it when it is set).
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
