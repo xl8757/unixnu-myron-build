@@ -31,21 +31,20 @@ if [ ! -x .cache/fakeroot/usr/local/libexec/availability.pl ]; then
     OBJROOT="$ROOT/build/availability" SYMROOT="$ROOT/build/availability" \
     DSTROOT="$ROOT/.cache/fakeroot" CMAKE="$(command -v cmake)" NINJA="$(command -v ninja)"
 fi
-# The optional observation hooks overlap existing root/exec patch context.
-# Remove them first so earlier independent patches retain their idempotent checks.
-# The same holds for the boot-time GPU addon mount and the staged system apps copy (zzy), which edit the owner Data mount function
-# inside the systemos patch. Reverse newest first; the loop below re-applies them in name order.
-for LATE_PATCH in "$ROOT/patches/xnu/zzz-boot-progress.patch" "$ROOT/patches/xnu/zzy-staged-system-apps.patch" \
-    "$ROOT/patches/xnu/zzy-native-gpu-addon-mount.patch"; do
-  if git -C .cache/xnu-work apply --reverse --check "$LATE_PATCH" >/dev/null 2>&1; then
-    git -C .cache/xnu-work apply --reverse "$LATE_PATCH"
+# A rebuild reuses the tree an earlier pass already patched, so undo that series before applying it
+# again. Reverse newest first: to revert a patch that rewrites text another patch introduced, the
+# later patch has to go first (zzz-myron-poster-grant extends the native_sandbox_grant zzw adds, the
+# observation hooks overlap root/exec context, and zzy edits the owner Data mount inside systemos).
+# The loop below then re-applies everything in name order.
+PATCHES=("$ROOT"/patches/xnu/*.patch "$ROOT"/kits/NativePrelink/patches/*.patch)
+for ((INDEX = ${#PATCHES[@]} - 1; INDEX >= 0; INDEX--)); do
+  if git -C .cache/xnu-work apply --reverse --check "${PATCHES[INDEX]}" >/dev/null 2>&1; then
+    git -C .cache/xnu-work apply --reverse "${PATCHES[INDEX]}"
   fi
 done
-for PATCH in "$ROOT"/patches/xnu/*.patch "$ROOT"/kits/NativePrelink/patches/*.patch; do
-  if ! git -C .cache/xnu-work apply --reverse --check "$PATCH" >/dev/null 2>&1; then
-    git -C .cache/xnu-work apply --check "$PATCH"
-    git -C .cache/xnu-work apply "$PATCH"
-  fi
+for PATCH in "${PATCHES[@]}"; do
+  git -C .cache/xnu-work apply --check "$PATCH"
+  git -C .cache/xnu-work apply "$PATCH"
 done
 export XNU_AVAILABILITY_PL=$ROOT/.cache/fakeroot/usr/local/libexec/availability.pl
 python3 scripts/prepare-xnu-source.py
