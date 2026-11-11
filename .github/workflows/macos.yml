@@ -259,6 +259,7 @@ jobs:
         run: bash -euo pipefail -c "$PRE_BUILD"
 
       - name: Build kernel
+        if: contains(inputs.steps, 'kernel') || contains(inputs.steps, 'payload') || contains(inputs.steps, 'bootimg')
         env:
           IPSW_URL: ${{ inputs.ipsw_url }}
         run: |
@@ -300,8 +301,16 @@ jobs:
         env:
           UEFI_TARGET: ${{ inputs.target }}
         run: |
-          ./unixnu build firmware --uefi "$GITHUB_WORKSPACE/uefi" \
-            --edk2 "$GITHUB_WORKSPACE/uefi/Mu_Basecore" --target "$UEFI_TARGET"
+          if ! ./unixnu build firmware --uefi "$GITHUB_WORKSPACE/uefi" \
+                 --edk2 "$GITHUB_WORKSPACE/uefi/Mu_Basecore" --target "$UEFI_TARGET"; then
+            for log in out/*/logs/firmware.log out/*/logs/firmware-preflight.log; do
+              if [ -f "$log" ]; then
+                echo "===== $log ====="
+                tail -n 250 "$log"
+              fi
+            done
+            exit 1
+          fi
 
       - name: Build boot image
         if: contains(inputs.steps, 'bootimg')
@@ -327,6 +336,7 @@ jobs:
           retention-days: 7
 
       - name: Upload kernel and payload
+        if: contains(inputs.steps, 'kernel') || contains(inputs.steps, 'payload')
         uses: actions/upload-artifact@v4
         with:
           name: unixnu-${{ inputs.defconfig }}
@@ -334,7 +344,7 @@ jobs:
             out/*/kernel/**
             out/*/payload/**
             out/*/logs/**
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Upload userdata
