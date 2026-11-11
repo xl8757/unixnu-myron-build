@@ -21,6 +21,7 @@ on:
         options:
           - kernel
           - kernel userdata
+          - kernel payload
           - kernel userdata payload
         default: kernel userdata
       ipsw_url:
