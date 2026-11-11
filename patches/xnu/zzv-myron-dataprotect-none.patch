@@ -1,0 +1,52 @@
+--- a/bsd/vfs/vfs_attrlist.c
++++ b/bsd/vfs/vfs_attrlist.c
+@@ -52,6 +52,8 @@
+ #include <kern/zalloc.h>
+ #include <miscfs/specfs/specdev.h>
+ #include <security/audit/audit.h>
++#include <sys/content_protection.h>
++#include <pexpert/pexpert.h>
+ 
+ #if CONFIG_MACF
+ #include <security/mac_framework.h>
+@@ -2737,6 +2739,31 @@ out:
+ 	return error;
+ }
+ 
++/*
++ * myron: a mount without MNT_CPROTECT (the port's Data volume is a host-made APFS image with no content protection) supports
++ * no protection classes, so ATTR_CMN_DATA_PROTECT_FLAGS is dropped and CFURL's NSURLFileProtectionKey reads nil. Every file
++ * there is effectively NSFileProtectionNone; with boot-arg myron-dp-none=1 report PROTECTION_CLASS_D so code that verifies
++ * "None" accepts it (PosterBoard's _PBFDetermineDataStoreViabilityForVersionWithinBaseURL rejects its poster store otherwise
++ * and the wallpaper editor reports "Wallpaper Limit Reached"). Setters are unaffected: CFURL and Foundation skip
++ * F_SETPROTECTIONCLASS when the volume does not support file protection.
++ */
++static void
++native_dp_none_fixup(mount_t mp, struct vnode_attr *vap)
++{
++	static int enabled = -1;
++
++	if (enabled < 0) {
++		int value = 0;
++		enabled = PE_parse_boot_argn("myron-dp-none", &value, sizeof(value)) && value == 1;
++	}
++	if (!enabled || mp == NULL || (mp->mnt_flag & MNT_CPROTECT) || !VATTR_IS_ACTIVE(vap, va_dataprotect_class)) {
++		return;
++	}
++	if (!VATTR_IS_SUPPORTED(vap, va_dataprotect_class) || vap->va_dataprotect_class == 0) {
++		VATTR_RETURN(vap, va_dataprotect_class, PROTECTION_CLASS_D);
++	}
++}
++
+ static errno_t
+ vfs_attr_pack_internal(mount_t mp, vnode_t vp, uio_t auio, struct attrlist *alp,
+     uint64_t options, struct vnode_attr *vap, __unused void *fndesc,
+@@ -2790,6 +2817,8 @@ vfs_attr_pack_internal(mount_t mp, vnode_t vp, uio_t auio, struct attrlist *alp,
+ 	pack_invalid = (options & FSOPT_PACK_INVAL_ATTRS) ? 1 : 0;
+ 	is_realdev = options & FSOPT_RETURN_REALDEV ? 1 : 0;
+ 
++	native_dp_none_fixup(mp ? mp : (vp ? vnode_mount(vp) : NULL), vap);
++
+ 	if (pack_invalid) {
+ 		/* Generate a valid mask for post processing */
+ 		bcopy(&(alp->commonattr), &ab.valid, sizeof(attribute_set_t));

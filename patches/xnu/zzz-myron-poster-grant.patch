@@ -1,0 +1,32 @@
+diff --git a/iokit/Kernel/IOUserClient.cpp b/iokit/Kernel/IOUserClient.cpp
+--- a/iokit/Kernel/IOUserClient.cpp
++++ b/iokit/Kernel/IOUserClient.cpp
+@@ -4352,6 +4352,28 @@
+ 		}
+ 		at += length + (at[length] == ',' ? 1 : 0);
+ 	}
++	/* myron (zzz-myron-poster-grant.patch): the poster extensions render the wallpapers and the preview tiles. Their
++	 * names do not fit in the loader's boot command line (Bad Buffer Size), so the list is compiled in here. The
++	 * matching is the property's: a process name holds 16 characters, a longer entry is compared by its first 16. */
++	static const char posters[] =
++	    "AegirPoster,AmbientPhotoFramePosterProvider,AvatarPosterExtension,ClockPosterExtension,"
++	    "CollectionsPoster,EmojiPosterExtension,ExtragalacticPoster,FunCameraEmojiStickersExtension,"
++	    "GradientPosterExtension,HelloPosterExtension,InfographPoster,KaleidoscopePoster,"
++	    "LegacyPoster,MercuryPosterExtension,MonogramPosterExtension,PhotosPosterProvider,"
++	    "PridePosterExtension,RhizomePoster,UnityPosterExtension,WallpaperDiagnosticExtension,"
++	    "WeatherPoster,WorldClockWidget";
++	for (const char * at = posters; *at;) {
++		size_t length = 0;
++
++		while (at[length] && at[length] != ',') {
++			++length;
++		}
++		if (length && 0 == strncmp(name, at, length < sizeof(name) - 1 ? length : sizeof(name) - 1)
++		    && (length >= sizeof(name) - 1 || name[length] == 0)) {
++			return true;
++		}
++		at += length + (at[length] == ',' ? 1 : 0);
++	}
+ 	return false;
+ }
+ 

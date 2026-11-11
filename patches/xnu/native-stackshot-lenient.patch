@@ -1,0 +1,20 @@
+diff --git a/osfmk/kern/kern_stackshot.c b/osfmk/kern/kern_stackshot.c
+--- a/osfmk/kern/kern_stackshot.c
++++ b/osfmk/kern/kern_stackshot.c
+@@ -3444,10 +3444,12 @@
+ #if DEBUG || DEVELOPMENT
+ 		if (current_delta_snapshot_index != num_delta_thread_snapshots) {
+-			panic("delta thread snapshot count mismatch while capturing snapshots for task %p. expected %d, found %d", task,
+-			    num_delta_thread_snapshots, current_delta_snapshot_index);
++			/* myron: a thread can enter or leave a wait state between the count pass and the fill pass. The development
++			 * check panicked a live system that was only taking a diagnostic snapshot; record the mismatch instead. */
++			printf("stackshot: delta thread snapshot count mismatch for task %p. expected %d, found %d\n", task,
++			    num_delta_thread_snapshots, current_delta_snapshot_index);
+ 		}
+ 		if (current_waitinfo_index != num_waitinfo_threads) {
+-			panic("thread wait info count mismatch while capturing snapshots for task %p. expected %d, found %d", task,
+-			    num_waitinfo_threads, current_waitinfo_index);
++			printf("stackshot: thread wait info count mismatch for task %p. expected %d, found %d\n", task,
++			    num_waitinfo_threads, current_waitinfo_index);
+ 		}
+ #endif

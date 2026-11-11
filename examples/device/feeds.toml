@@ -1,0 +1,10 @@
+# Sources of this device repository, in addition to the feeds.toml of UniXNU. A git source with a
+# path is fetched with a shallow, blobless, sparse checkout of that directory only.
+#
+# [[source]]
+# name = "SomeDriver"
+# kind = "driver"                  # driver, kit, patch, package or refer
+# git = "https://github.com/ORG/REPO"
+# ref = "main"
+# path = "drivers/SomeDriver"
+# commit = "..."                   # optional pin; "unixnu fetch" records the result in unixnu.lock

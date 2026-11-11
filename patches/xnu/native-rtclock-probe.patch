@@ -1,0 +1,78 @@
+diff --git a/osfmk/arm/rtclock.c b/osfmk/arm/rtclock.c
+--- a/osfmk/arm/rtclock.c
++++ b/osfmk/arm/rtclock.c
+@@ -66,6 +66,22 @@
+ 
+ #define MAX_TIMEBASE_TRIES 10
+ 
++/* myron: per-CPU record of the most recent decrementer request (setPop below). dec is exactly what
++ * deadline_to_decrementer() returned for that request: DECREMENTER_MIN (0xA) when the deadline was already in the past
++ * and got clamped, DECREMENTER_MAX (0x7FFFFFFF) when it was far enough away to be treated as "nothing due". delta is
++ * time - mach_absolute_time() truncated to 32 bits (negative when the deadline had already passed). The boot page reads
++ * these with the armcpu_core_timer_* probe (boot-arg myron-timer-gap). */
++volatile int32_t  rtclock_probe_delta[8];
++volatile uint32_t rtclock_probe_dec[8];
++volatile uint32_t rtclock_probe_calls[8];     /* setPop() calls seen per CPU */
++volatile uint32_t rtclock_probe_short[8];     /* of those, delay_time <= 0x100 (5.3 us) */
++volatile uint32_t rtclock_probe_short4k[8];   /* of those, delay_time <= 0x1000 (213 us) */
++volatile uint32_t rtclock_probe_min[8];       /* smallest delay_time seen, 0 = never */
++volatile uint32_t rtclock_probe_signal[8];    /* cpu_signal at the last setPop: SIGPdisabled (0x80000000) means the CPU cannot idle */
++volatile uint32_t rtclock_probe_ipibits[8];   /* cpu_signal mask seen by cpu_signal_handler_internal on this CPU */
++volatile uint32_t rtclock_probe_ipibits[8];   /* cpu_signal mask seen by cpu_signal_handler_internal on this CPU */
++volatile uint32_t rtclock_probe_ipibits[8];   /* cpu_signal mask seen by cpu_signal_handler_internal on this CPU */
++
+ int rtclock_init(void);
+ 
+ static int
+@@ -398,6 +414,25 @@
+ 	current_time = mach_absolute_time();
+ 
+ 	delay_time = deadline_to_decrementer(time, current_time);
++	{
++		unsigned probe_cpu = ml_get_cpu_number_local();
++		uint32_t probe_dec = (uint32_t)delay_time;
++		if (probe_cpu < 8) {
++			rtclock_probe_delta[probe_cpu] = (int32_t)(uint32_t)(time - current_time);
++			rtclock_probe_signal[probe_cpu] = (uint32_t)cdp->cpu_signal;
++			rtclock_probe_dec[probe_cpu] = probe_dec;
++			rtclock_probe_calls[probe_cpu] += 1;
++			if (probe_dec <= 0x100) {
++				rtclock_probe_short[probe_cpu] += 1;
++			}
++			if (probe_dec <= 0x1000) {
++				rtclock_probe_short4k[probe_cpu] += 1;
++			}
++			if (rtclock_probe_min[probe_cpu] == 0 || probe_dec < rtclock_probe_min[probe_cpu]) {
++				rtclock_probe_min[probe_cpu] = probe_dec;
++			}
++		}
++	}
+ 	cdp->rtcPop = delay_time + current_time;
+ 
+ 	ml_set_decrementer((uint32_t) delay_time);
+diff --git a/osfmk/arm/cpu_common.c b/osfmk/arm/cpu_common.c
+--- a/osfmk/arm/cpu_common.c
++++ b/osfmk/arm/cpu_common.c
+@@ -43,6 +43,9 @@
+ #include <arm/caches_internal.h>
+ #include <arm/cpu_data_internal.h>
+ #include <arm/cpu_internal.h>
++
++/* myron: boot-page probe (patches/xnu/native-rtclock-probe.patch). */
++extern volatile uint32_t rtclock_probe_ipibits[8];
+ #include <arm/misc_protos.h>
+ #include <arm/machine_cpu.h>
+ #include <arm/rtclock.h>
+@@ -591,6 +594,12 @@
+ 	 * handlers.
+ 	 */
+ 	cpu_signal = os_atomic_or(&cpu_data_ptr->cpu_signal, 0, acquire);
++	{
++		unsigned probe_cpu = (unsigned)cpu_data_ptr->cpu_number;
++		if (probe_cpu < 8) {
++			rtclock_probe_ipibits[probe_cpu] = (uint32_t)cpu_signal;
++		}
++	}
+ 
+ 	if ((!(cpu_signal & SIGPdisabled)) && (disable_signal == TRUE)) {
+ 		os_atomic_or(&cpu_data_ptr->cpu_signal, SIGPdisabled, relaxed);

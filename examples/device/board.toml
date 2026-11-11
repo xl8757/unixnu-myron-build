@@ -1,0 +1,49 @@
+# Example device repository for the unixnu build driver. Copy this directory, rename it and fill in
+# your board. Try it as it is with:  ./unixnu defconfig example_defconfig -D examples/device && ./unixnu status
+
+[board]
+example = true                     # marks a sample: unixnu will not build from it
+name = "example"                   # output goes to out/example/
+soc = "SOC"
+description = "EXAMPLE board, not a real device"
+kit = "example"                    # the package/ of the device repository appears as kits/example
+
+[kernel]
+defconfig = "example_defconfig"
+
+[kernel.prelink]
+tool = "kits/NativePrelink/emit_prelink.py"
+kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf"
+# kernelcache_sha256 = "..."       # optional: refuse any other original kernelcache
+slide = "-0x1000000"
+roots = [
+  # "com.apple.driver.AppleARMPlatform",   # bundle identifiers kept in the prelinked kernel
+]
+
+[firmware]
+config = "example"                 # Resources/Configs/example.toml in the Mu-Silicium checkout (--uefi)
+dsc = "Platforms/Vendor/examplePkg/example.dsc"
+fd = "Build/examplePkg/{target}_CLANGPDB/FV/SILICIUM_UEFI.fd"
+# preflight = ["scripts/check-example.py"]     # scripts of the build tree run before the firmware build
+# patches = ["Resources/MuPatches/Example.patch"]   # applied to edk2 for the build, then reverted
+packages = [                       # {uefi}, {edk2} and {tree} are replaced
+  "{uefi}",
+  "{tree}/package",
+  "{tree}/drivers/DarwinBoot",
+  "{edk2}",
+]
+
+[firmware.defines]
+DEVICE_MODEL = "example"
+
+# Image parameters (base, offsets, page size, header version) come from the Mu-Silicium device
+# config; [bootimg.image] overrides them, and each [[bootimg.dtb_node]] adds a node to the device tree.
+# [bootimg.image]
+# pagesize = 4096
+#
+# [[bootimg.dtb_node]]
+# path = "/reserved-memory/example_region"
+# props = [
+#   { name = "label", type = "s", value = "example" },
+#   { name = "reg", type = "x", value = ["0x0", "0x80000000", "0x0", "0x100000"] },
+# ]

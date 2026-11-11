@@ -1,0 +1,164 @@
+diff --git a/osfmk/arm64/cpu.c b/osfmk/arm64/cpu.c
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -35,6 +35,11 @@
+ #include <kern/kalloc.h>
+ #include <kern/machine.h>
+ #include <kern/cpu_number.h>
++#include <kern/processor.h>
++#include <kern/recount.h>
++#include <kern/clock.h>
++#include <kern/misc_protos.h>
++#include <pexpert/pexpert.h>
+ #include <kern/percpu.h>
+ #include <kern/thread.h>
+ #include <kern/timer_queue.h>
+@@ -484,6 +489,138 @@
+ }
+ 
+ /*
++ * myron CPU support (zzz-myron-cpu-idle.patch). Two things the CPU frequency governor of this board
++ * (kits/myron/MyronCpuPerf.c) cannot see from a driver archive, and the core retention state of the phone's
++ * device tree.
++ *
++ * The governor wants each CPU's idle time (recount, as the scheduler keeps it) and, for its thermal path, the
++ * set of cores the scheduler may use (the interface Apple's performance controller uses for that). Both are
++ * Mach internals, so they live here.
++ *
++ * The phone's device tree (base0.dts cpus/idle-states) gives each core one PSCI state, "ret":
++ * medium-cluster0-c4 for cpu 0-5 and large-cluster1-c4 for cpu 6-7, arm,psci-suspend-param 0x4 (PSCI's
++ * original format: a standby state that keeps its context), no local-timer-stop (the timer keeps running),
++ * min-residency 560 us (0x230) and 686 us (0x2ae). cpu_idle calls myron_idle_wfi in place of WFI; it enters
++ * "ret" when the CPU's next timer pop is at least that far away and WFI otherwise. An interrupt ends either.
++ * The cluster and system states (0x1000054, 0x200c354) need PSCI's OS-initiated mode and are not used yet.
++ * Boot-arg myron-idle=0: WFI only. Until myron_idle_start runs (from the governor, ~3 s after boot) every idle
++ * is WFI.
++ */
++
++#define MYRON_IDLE_CPUS       8
++#define MYRON_IDLE_STATE_RET  0x4u
++
++uint64_t myron_cpu_idle_mach(int cpu);
++uint64_t
++myron_cpu_idle_mach(int cpu)
++{
++	processor_t p = cpu_to_processor(cpu);
++	struct recount_usage usage = {};
++	uint64_t idle = 0;
++
++	if (p == PROCESSOR_NULL) {
++		return 0;
++	}
++	recount_processor_usage(&p->pr_recount, &usage, &idle);
++	return idle;
++}
++
++void myron_cpu_recommend(uint64_t cores);
++void
++myron_cpu_recommend(uint64_t cores)
++{
++	sched_perfcontrol_update_recommended_cores_reason(cores, REASON_CLPC_SYSTEM, 0);
++}
++
++static uint64_t myron_idle_res[2];
++static int myron_idle_mode;
++static int32_t myron_idle_error;
++static uint64_t myron_idle_ret[MYRON_IDLE_CPUS], myron_idle_ret_time[MYRON_IDLE_CPUS];
++static uint64_t myron_idle_wfi_count[MYRON_IDLE_CPUS], myron_idle_fail[MYRON_IDLE_CPUS];
++
++/* SMCCC 1.0 as the firmware's CPU_ON: x0 is the signed PSCI result; x1-x17 do not survive. */
++static int32_t
++myron_idle_cpu_suspend(uint64_t state)
++{
++	register uint64_t x0 __asm__("x0") = 0xC4000001ULL;   /* CPU_SUSPEND, SMC64 */
++	register uint64_t x1 __asm__("x1") = state;
++	register uint64_t x2 __asm__("x2") = 0;               /* entry point: unused by a standby state */
++	register uint64_t x3 __asm__("x3") = 0;
++	__asm__ volatile ("smc #0" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3) : :
++	    "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13",
++	    "x14", "x15", "x16", "x17", "cc", "memory");
++	return (int32_t)x0;
++}
++
++void myron_idle_start(void);
++void
++myron_idle_start(void)
++{
++	int mode = 1;
++
++	(void)PE_parse_boot_argn("myron-idle", &mode, sizeof(mode));
++	nanoseconds_to_absolutetime(560 * 1000ull, &myron_idle_res[0]);
++	nanoseconds_to_absolutetime(686 * 1000ull, &myron_idle_res[1]);
++	__atomic_store_n(&myron_idle_mode, mode == 1, __ATOMIC_RELEASE);
++	kprintf("MYRON IDLE: %s (DT \"ret\" 0x%x when the next timer is at least 560 us / 686 us away)\n",
++	    mode == 1 ? "core retention on" : "WFI only", MYRON_IDLE_STATE_RET);
++}
++
++/* In place of WFI, interrupts masked, the CPU's next timer pop at POP (mach time). */
++void myron_idle_wfi(unsigned cpu, uint64_t pop);
++void
++myron_idle_wfi(unsigned cpu, uint64_t pop)
++{
++	if (cpu < MYRON_IDLE_CPUS && __atomic_load_n(&myron_idle_mode, __ATOMIC_ACQUIRE) == 1) {
++		const uint64_t now = mach_absolute_time();
++		const unsigned big = ((__builtin_arm_rsr64("MPIDR_EL1") >> 16) & 0xff) != 0;   /* Aff2 1: cpu 6-7 */
++
++		if (pop > now && pop - now >= myron_idle_res[big]) {
++			const int32_t r = myron_idle_cpu_suspend(MYRON_IDLE_STATE_RET);
++
++			if (r == 0) {
++				myron_idle_ret[cpu]++;
++				myron_idle_ret_time[cpu] += mach_absolute_time() - now;
++				return;
++			}
++			myron_idle_error = r;
++			if (++myron_idle_fail[cpu] >= 8) {
++				__atomic_store_n(&myron_idle_mode, 0, __ATOMIC_RELAXED);   /* refused: WFI from now on */
++			}
++		}
++	}
++	if (cpu < MYRON_IDLE_CPUS) {
++		myron_idle_wfi_count[cpu]++;
++	}
++	__builtin_arm_wfi();
++}
++
++/* Since the last call, per CPU: retention entries with their average length, WFIs, refusals. */
++void myron_idle_log(void);
++void
++myron_idle_log(void)
++{
++	static uint64_t shown_ret[MYRON_IDLE_CPUS], shown_time[MYRON_IDLE_CPUS], shown_wfi[MYRON_IDLE_CPUS];
++	char line[384];
++	int at = 0;
++
++	for (unsigned c = 0; c < MYRON_IDLE_CPUS && at < (int)sizeof(line); c++) {
++		const uint64_t ret = myron_idle_ret[c] - shown_ret[c], wfi = myron_idle_wfi_count[c] - shown_wfi[c];
++		uint64_t ns = 0;
++
++		absolutetime_to_nanoseconds(myron_idle_ret_time[c] - shown_time[c], &ns);
++		shown_ret[c] += ret;
++		shown_wfi[c] += wfi;
++		shown_time[c] = myron_idle_ret_time[c];
++		at += snprintf(line + at, sizeof(line) - (size_t)at, " %u: %llu x %llu us / %llu", c, ret,
++		    ret ? ns / 1000 / ret : 0, wfi);
++	}
++	kprintf("MYRON IDLE: ret x average / wfi:%s | mode %d, refused %llu (last %d)\n", line, myron_idle_mode,
++	    myron_idle_fail[0] + myron_idle_fail[1] + myron_idle_fail[2] + myron_idle_fail[3] + myron_idle_fail[4] +
++	    myron_idle_fail[5] + myron_idle_fail[6] + myron_idle_fail[7], myron_idle_error);
++}
++
++/*
+  *	Routine:	cpu_idle
+  *	Function:
+  */
+@@ -603,7 +740,8 @@
+ #if HAS_RETENTION_STATE
+ 		arm64_retention_wfi();
+ #else
+-		__builtin_arm_wfi();
++		/* zzz-myron-cpu-idle: the DT's core retention state when the next timer is far enough */
++		myron_idle_wfi(cpu_data_ptr->cpu_number, cpu_data_ptr->rtcPop);
+ #endif
+ 
+ #if defined(APPLETYPHOON)

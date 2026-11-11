@@ -1,0 +1,63 @@
+[submodule "drivers/ArmCpu"]
+	path = drivers/ArmCpu
+	url = https://github.com/zg7681/ArmCpu.git
+[submodule "drivers/ArmDTPlatform"]
+	path = drivers/ArmDTPlatform
+	url = https://github.com/UniXNU/ArmDTPlatform.git
+[submodule "drivers/ArmVirtPlatform"]
+	path = drivers/ArmVirtPlatform
+	url = https://github.com/UniXNU/ArmVirtPlatform.git
+[submodule "drivers/DarwinBoot"]
+	path = drivers/DarwinBoot
+	url = https://github.com/UniXNU/DarwinBoot.git
+[submodule "drivers/NativeAES"]
+	path = drivers/NativeAES
+	url = https://github.com/UniXNU/NativeAES.git
+[submodule "drivers/NativeAdreno"]
+	path = drivers/NativeAdreno
+	url = https://github.com/zg7681/NativeAdreno.git
+[submodule "drivers/NativeGeniSpi"]
+	path = drivers/NativeGeniSpi
+	url = https://github.com/UniXNU/NativeGeniSpi.git
+[submodule "drivers/NativeHidInput"]
+	path = drivers/NativeHidInput
+	url = https://github.com/UniXNU/NativeHidInput.git
+[submodule "drivers/NativeKeyStoreEvents"]
+	path = drivers/NativeKeyStoreEvents
+	url = https://github.com/UniXNU/NativeKeyStoreEvents.git
+[submodule "drivers/NativeMetal"]
+	path = drivers/NativeMetal
+	url = https://github.com/zg7681/AdrenoMetal.git
+[submodule "drivers/NativeMobileDisplay"]
+	path = drivers/NativeMobileDisplay
+	url = https://github.com/UniXNU/NativeMobileDisplay.git
+[submodule "drivers/NativeRamBlock"]
+	path = drivers/NativeRamBlock
+	url = https://github.com/UniXNU/NativeRamBlock.git
+[submodule "drivers/NativeUfs"]
+	path = drivers/NativeUfs
+	url = https://github.com/zg7681/NativeUfs.git
+[submodule "drivers/NativeVirtioBlock"]
+	path = drivers/NativeVirtioBlock
+	url = https://github.com/UniXNU/NativeVirtioBlock.git
+[submodule "drivers/NativeVirtioConsole"]
+	path = drivers/NativeVirtioConsole
+	url = https://github.com/UniXNU/NativeVirtioConsole.git
+[submodule "kits/AdrenoFirmware"]
+	path = kits/AdrenoFirmware
+	url = https://github.com/UniXNU/AdrenoFirmware.git
+[submodule "kits/AdrenoPM4"]
+	path = kits/AdrenoPM4
+	url = https://github.com/UniXNU/AdrenoPM4.git
+[submodule "kits/AirNir"]
+	path = kits/AirNir
+	url = https://github.com/UniXNU/AirNir.git
+[submodule "kits/ArmSmmu4K"]
+	path = kits/ArmSmmu4K
+	url = https://github.com/UniXNU/ArmSmmu4K.git
+[submodule "kits/NativePrelink"]
+	path = kits/NativePrelink
+	url = https://github.com/UniXNU/NativePrelink.git
+[submodule "kits/VerifiedRoot"]
+	path = kits/VerifiedRoot
+	url = https://github.com/UniXNU/VerifiedRoot.git

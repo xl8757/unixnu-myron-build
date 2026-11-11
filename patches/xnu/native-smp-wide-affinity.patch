@@ -1,0 +1,27 @@
+--- a/osfmk/arm64/machine_routines.c
++++ b/osfmk/arm64/machine_routines.c
+@@ -1251,7 +1251,12 @@ ml_get_boot_cluster_type(void)
+ int
+ ml_get_cpu_number(uint32_t phys_id)
+ {
++#if defined(BCM2837)
++	/* The DT "reg" keeps Affinity2: SM8850 numbers its prime cores 0x10000 and 0x10100. */
++	phys_id &= MPIDR_AFF2_MASK | MPIDR_AFF1_MASK | MPIDR_AFF0_MASK;
++#else
+ 	phys_id &= MPIDR_AFF1_MASK | MPIDR_AFF0_MASK;
++#endif
+ 
+ 	for (unsigned i = 0; i < topology_info.num_cpus; i++) {
+ 		if (topology_info.cpus[i].phys_id == phys_id) {
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -149,6 +149,9 @@ LEXT(reset_vector)
+ 	and		x0, x15, #0xFFFF					// CPU number in Affinity0, cluster ID in Affinity1 (SM8550 numbers cores in Affinity1)
+ #else
+ 	and		x0, x15, #0xFF						// CPU number is in MPIDR Affinity Level 0
++#endif
++#if defined(BCM2837)
++	and		x0, x15, #0xFFFFFF					// Keep Affinity2 as well: SM8850 puts the prime cluster there (0x10000, 0x10100)
+ #endif
+ 	ldr		x1, [x19, CPU_DATA_ENTRIES]			// Load start of data entries
+ 	add		x3, x1, MAX_CPUS * 16				// end addr of data entries = start + (16 * MAX_CPUS)
