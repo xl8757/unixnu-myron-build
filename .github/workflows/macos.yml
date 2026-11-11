@@ -29,11 +29,11 @@ on:
       uefi_repository:
         description: Mu-Silicium base repository for the firmware and the BootShim
         required: false
-        default: Project-Silicium/Mu-Silicium
+        default: UniXNU/uefi-sheng
       uefi_ref:
         description: Mu-Silicium commit or ref to pin the firmware and the BootShim to
         required: false
-        default: 46e4ac0800862fb3ee6da09f0028fbef4e767648
+        default: 66421cb7bb5694843aec8de1ca3d1de4c20cca38
       uefi_package_repository:
         description: Board UEFI package overlay (Platforms/ and Resources/)
         required: false
@@ -189,6 +189,29 @@ jobs:
           cp -R uefi-package/Platforms/. uefi/Platforms/
           cp -R uefi-package/Resources/. uefi/Resources/
           echo "board package $(git -C uefi-package rev-parse HEAD)"
+
+      # myronPkg uses the aston ACPI tables (the OnePlus 15 package this port was generated from), and
+      # its DSC names them as aston/AcpiTables.inf. The board file lists the Xiaomi and Qualcomm package
+      # roots but not the OnePlus ones those tables live under, so add them before the firmware step.
+      - name: Add the board firmware package paths
+        if: contains(inputs.steps, 'firmware') || contains(inputs.steps, 'bootimg')
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('device/board.toml')
+          text = path.read_text()
+          needed = ('{uefi}/Platforms/OnePlus', '{uefi}/Silicium-ACPI/Platforms/OnePlus')
+          missing = [f'  "{item}",' for item in needed if f'"{item}"' not in text]
+          if missing:
+              anchor = '  "{uefi}/Silicium-ACPI/Platforms/Xiaomi",'
+              if anchor not in text:
+                  raise SystemExit('board.toml: no Xiaomi ACPI package anchor')
+              path.write_text(text.replace(anchor, '\n'.join(missing) + '\n' + anchor))
+          for item in needed:
+              if f'"{item}"' not in path.read_text():
+                  raise SystemExit(f'board.toml: {item} was not added')
+          print('firmware package paths:', ', '.join(needed))
+          PY
 
       - name: Use the official UniXNU BootShim
         if: contains(inputs.steps, 'bootimg')
