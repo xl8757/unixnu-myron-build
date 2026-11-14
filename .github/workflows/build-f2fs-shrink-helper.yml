@@ -1,0 +1,47 @@
+name: build-f2fs-shrink-helper
+
+on:
+  push:
+    branches: [ci/f2fs-shrink-helper]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install aarch64 cross compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu libc6-dev-arm64-cross linux-libc-dev-arm64-cross file
+          aarch64-linux-gnu-gcc -print-sysroot
+          ls -l /usr/aarch64-linux-gnu/include/linux/fs.h
+
+      - name: Build static aarch64 helper
+        run: |
+          mkdir -p out/dual_sys
+          aarch64-linux-gnu-gcc -static -O2 -Wall -Wextra -Werror -Wno-unused-variable \
+            scripts/dual_sys/f2fs-shrink.c -o out/dual_sys/f2fs-shrink
+          file out/dual_sys/f2fs-shrink
+          sha256sum out/dual_sys/f2fs-shrink
+
+      - name: Verify device-capable ELF
+        run: |
+          grep -a -q "root and a valid userdata path" out/dual_sys/f2fs-shrink
+          if grep -a -q "supports self-test only" out/dual_sys/f2fs-shrink; then
+            echo "ERROR: this is a host self-test-only build"
+            exit 1
+          fi
+          python3 -c "import struct; d=open('out/dual_sys/f2fs-shrink','rb').read(20); assert d[:4]==b'\x7fELF' and d[5]==1 and struct.unpack_from('<H',d,18)[0]==183; print('aarch64 little-endian ELF: OK')"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f2fs-shrink-aarch64
+          path: out/dual_sys/f2fs-shrink
+          if-no-files-found: error
+          retention-days: 7
