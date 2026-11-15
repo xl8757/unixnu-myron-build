@@ -1,0 +1,94 @@
+name: Build myron iOS 16.7.16 kernel
+
+# First Format 2 kernel build for the myron / 20H392 port.
+# The device repository lives on branch device/myron-ios16 of this repo;
+# the Format 2 UniXNU checkout is cloned fresh from upstream.
+# Read-only with respect to any phone: no fastboot, no flashing.
+
+on:
+  push:
+    branches: [ci/build-myron-ios16]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # prepare-xnu-source.py talks to the GitHub API; unauthenticated requests hit
+  # the rate limit mid-build (HTTP 403). The upstream macos.yml does the same.
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: myron-ios16-kernel
+  cancel-in-progress: true
+
+jobs:
+  kernel:
+    runs-on: macos-latest
+    timeout-minutes: 360
+    steps:
+      - name: Clone the Format 2 UniXNU tree and the device repository
+        run: |
+          git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
+          git clone --depth 1 --branch device/myron-ios16 \
+            https://github.com/xl8757/unixnu-myron-build.git device
+          cp -R device/os-profiles/ios-16.7.16-20H392 unixnu/profiles/os/
+          echo "UniXNU $(git -C unixnu rev-parse --short HEAD)"
+          echo "device  $(git -C device rev-parse --short HEAD)"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Host toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          command -v compression_tool
+          brew install cmake ninja unifdef llvm lld mtools dtc
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --disable-pip-version-check uefi_firmware==1.16
+
+      - name: Resolve the configuration (offline-friendly, no phone)
+        run: |
+          cd unixnu
+          python3 unixnu defconfig myron_ios16_defconfig -D ../device
+          python3 unixnu fetch -D ../device
+          python3 unixnu status -D ../device | tee ../status.txt
+          python3 unixnu status --json -D ../device > ../status.json || true
+
+      - name: Build kernel
+        id: kernel
+        env:
+          # xnu-8796 does not emit per-object compile records. The archive
+          # builders replay them, and NX769J's build.yml solves this by pointing
+          # XNU's $(CCACHE) $(CC) hook at scripts/compile-records.py.
+          CCACHE: python3 ${{ github.workspace }}/device/scripts/compile-records.py
+        run: |
+          cd unixnu
+          python3 unixnu build kernel -D ../device
+
+      - name: Dump the build logs on failure
+        if: failure() && steps.kernel.outcome == 'failure'
+        run: |
+          find unixnu/out -name '*.log' -type f | head -20
+          for f in $(find unixnu/out -name '*.log' -type f | head -8); do
+            echo "===== $f ====="
+            tail -n 120 "$f"
+          done
+
+      - name: Upload logs and kernel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: myron-ios16-kernel
+          path: |
+            unixnu/out/**/kernel/**
+            unixnu/out/**/logs/**
+            status.txt
+            status.json
+          if-no-files-found: warn
+          retention-days: 14
