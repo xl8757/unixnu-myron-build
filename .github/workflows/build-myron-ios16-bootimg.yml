@@ -1,0 +1,143 @@
+name: Build myron iOS 16.7.16 boot image
+
+# Packs the payload built by Build myron iOS 16.7.16 payload into an Android boot
+# image: gzip(BootShim + UEFI FD) + the payload as the ramdisk + the device tree.
+# Read-only with respect to any phone: builds a file, flashes nothing.
+#
+# The FD comes from the xl8757/myron-uefi release (the iPadOS 17.7.11 firmware,
+# 3,145,728 bytes at 0xA7100000). Mu-Silicium is cloned at the commit that
+# firmware was built from and gets the myronPkg/Resources/BootShim overlay, which
+# is what bootimg needs for mkbootimg.py, BootShim.S and [uefi_fd] base/size.
+
+on:
+  push:
+    branches: [ci/build-myron-ios16-bootimg]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MU_COMMIT: 46e4ac0800862fb3ee6da09f0028fbef4e767648
+  PAYLOAD_RUN: "43697267552"
+
+jobs:
+  bootimg:
+    runs-on: macos-latest
+    timeout-minutes: 180
+    steps:
+      - name: Clone the Format 2 tree, the device repo and the firmware overlay
+        run: |
+          git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
+          git clone --depth 1 --branch device/myron-ios16 \
+            https://github.com/xl8757/unixnu-myron-build.git device
+          git clone --depth 1 https://github.com/xl8757/myron-uefi.git uefi
+          cp -R device/os-profiles/ios-16.7.16-20H392 unixnu/profiles/os/
+          git init -q Mu-Silicium
+          git -C Mu-Silicium fetch --depth 1 \
+            https://github.com/Project-Silicium/Mu-Silicium.git "$MU_COMMIT"
+          git -C Mu-Silicium checkout -q FETCH_HEAD
+          echo "mu at $(git -C Mu-Silicium rev-parse --short HEAD)"
+
+      - name: Overlay myronPkg, the config, the DTB and the BootShim
+        run: |
+          set -euo pipefail
+          cp -r uefi/Platforms/Xiaomi/myronPkg Mu-Silicium/Platforms/Xiaomi/myronPkg
+          cp uefi/Resources/Configs/myron.toml Mu-Silicium/Resources/Configs/myron.toml
+          mkdir -p Mu-Silicium/Resources/DTBs
+          cp uefi/Resources/DTBs/myron.dtb Mu-Silicium/Resources/DTBs/myron.dtb
+          cp -r uefi/BootShim/. Mu-Silicium/BootShim/
+          test -f Mu-Silicium/Resources/Scripts/mkbootimg.py
+          test -f Mu-Silicium/BootShim/BootShim.S
+          grep -n "uefi_fd" -A4 Mu-Silicium/Resources/Configs/myron.toml
+
+      - name: Fetch the firmware volume from the myron-uefi release
+        run: |
+          set -euo pipefail
+          url=$(gh api repos/xl8757/myron-uefi/releases/latest \
+                  --jq '.assets[] | select(.name=="SILICIUM_UEFI.fd") | .browser_download_url' | head -1)
+          if [ -z "$url" ]; then echo "::error title=fd::no SILICIUM_UEFI.fd asset on the latest release"; exit 1; fi
+          curl -fSL -o SILICIUM_UEFI.fd "$url"
+          ls -l SILICIUM_UEFI.fd
+          shasum -a 256 SILICIUM_UEFI.fd | tee fd.sha256
+
+      - name: Fetch the payload built by the payload workflow
+        run: |
+          set -euo pipefail
+          gh run download "$PAYLOAD_RUN" -R xl8757/unixnu-myron-build -n myron-ios16-payload -D payload-artifact
+          img=$(find payload-artifact -name payload.img | head -1)
+          test -n "$img"
+          cp "$img" payload.img
+          ls -l payload.img
+          shasum -a 256 payload.img | tee payload.sha256
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Host toolchain
+        run: |
+          brew install dtc mtools llvm lld
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          command -v dtc
+          clang --version | head -1
+
+      - name: Resolve the configuration
+        run: |
+          cd unixnu
+          python3 unixnu defconfig myron_ios16_defconfig -D ../device
+          python3 unixnu fetch -D ../device
+
+      - name: Compile the handoff device tree
+        run: |
+          set -euo pipefail
+          dtc -I dts -O dtb -o hardware.dtb device/dts/myron-handoff.dts
+          ls -l hardware.dtb
+
+      - name: Build the boot image
+        id: bootimg
+        run: |
+          set -euo pipefail
+          cd unixnu
+          python3 unixnu bootimg -D ../device \
+            --uefi ../Mu-Silicium \
+            --fd ../SILICIUM_UEFI.fd \
+            --dtb ../hardware.dtb \
+            --ramdisk ../payload.img
+          echo "== boot image =="
+          find out -name 'boot.img' -o -name 'boot.json' | while read -r f; do ls -l "$f"; done
+
+      - name: Verify the boot image report
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = next(Path('unixnu/out').rglob('boot.json'))
+          data = json.loads(report.read_text())
+          print(json.dumps(data, indent=2)[:2000])
+          ramdisk = data.get('ramdisk_bytes') or data.get('ramdisk', {}).get('bytes')
+          if not ramdisk:
+              raise SystemExit('FAIL: boot.json records no ramdisk; the payload did not go in')
+          print(f'OK: ramdisk_bytes = {ramdisk}')
+          PY
+          img=$(find unixnu/out -name boot.img | head -1)
+          ls -l "$img"; shasum -a 256 "$img"
+
+      - name: Upload the boot image and the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: myron-ios16-bootimg
+          path: |
+            unixnu/out/**/boot/**
+            fd.sha256
+            payload.sha256
+            hardware.dtb
+            unixnu/out/**/logs/**
+          if-no-files-found: warn
+          retention-days: 14
