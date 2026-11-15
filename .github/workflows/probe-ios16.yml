@@ -1,0 +1,139 @@
+name: Probe iOS 16.7.16 pins
+
+# Read-only pin discovery for the 20H392 target. Downloads only the OS dmg
+# member over HTTP Range, attaches it read-only with hdiutil, and reports the
+# APFS root volume UUID plus the Darwin/XNU version of the kernelcache.
+# Nothing is flashed, no device is touched, no proprietary image is uploaded.
+
+on:
+  push:
+    branches: [ci/probe-ios16]
+  workflow_dispatch:
+    inputs:
+      ipsw_url:
+        description: IPSW URL (20H392)
+        required: true
+        default: "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw"
+
+permissions:
+  contents: read
+
+env:
+  # A literal, not an expression: `inputs.*` does not resolve in top-level env
+  # for push-triggered runs, which produced an empty URL on the first attempt.
+  IPSW_URL: "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw"
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Report the host
+        run: |
+          sw_vers
+          command -v hdiutil
+          command -v compression_tool
+          command -v diskutil
+
+      - name: Fetch the OS dmg and kernelcache members over HTTP Range
+        run: |
+          python3 - <<'PY'
+          import os, sys, zipfile
+          sys.path.insert(0, 'scripts')
+          from unixnu.ipsw import RangeFile
+          url = os.environ['IPSW_URL']
+          zf = zipfile.ZipFile(RangeFile(url, block=32 << 20, retries=10))
+          for name in ('087-86698-044.dmg', 'kernelcache.release.iphone10b'):
+              with zf.open(name) as src, open(name, 'wb') as dst:
+                  while chunk := src.read(8 << 20):
+                      dst.write(chunk)
+              print(name, os.path.getsize(name), flush=True)
+          PY
+
+      - name: Attach read-only and read the APFS volume UUIDs
+        run: |
+          set -euo pipefail
+          hdiutil attach -nomount -readonly -noverify -noautofsck 087-86698-044.dmg | tee attach.txt
+          disk=$(grep -o '/dev/disk[0-9][0-9]*' attach.txt | head -1)
+          echo "device=$disk"
+          echo "$disk" > device.txt
+          diskutil apfs list -plist > apfs.plist
+          python3 - <<'PY'
+          import json, plistlib
+          from pathlib import Path
+          data = plistlib.loads(Path('apfs.plist').read_bytes())
+          found = []
+          def walk(node):
+              if isinstance(node, dict):
+                  if any(k in node for k in ('VolumeUUID', 'APFSVolumeUUID', 'VolumeUUIDString')):
+                      found.append({k: node.get(k) for k in
+                                    ('Name', 'VolumeName', 'VolumeUUID', 'APFSVolumeUUID',
+                                     'VolumeUUIDString', 'Roles', 'Role', 'CapacityInUse', 'CapacityTotal')
+                                    if k in node})
+                  for value in node.values():
+                      walk(value)
+              elif isinstance(node, list):
+                  for value in node:
+                      walk(value)
+          walk(data)
+          Path('volume-uuid.json').write_text(json.dumps(found, indent=2) + '\n')
+          print(json.dumps(found, indent=2))
+          PY
+
+      - name: Decode the kernelcache with the system tool (cross-check)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, 'scripts')
+          from unixnu.ipsw import im4p_payload
+          from pathlib import Path
+          Path('kernelcache.lzfse').write_bytes(
+              im4p_payload(Path('kernelcache.release.iphone10b').read_bytes()))
+          PY
+          /usr/bin/compression_tool -decode -a lzfse -i kernelcache.lzfse -o kernelcache.fat
+          python3 - <<'PY'
+          import hashlib, struct
+          from pathlib import Path
+          fat = Path('kernelcache.fat').read_bytes()
+          if fat[:4] == b'\xca\xfe\xba\xbe':
+              n = struct.unpack('>I', fat[4:8])[0]
+              slices = [struct.unpack('>5I', fat[8 + 20 * i:28 + 20 * i]) for i in range(n)]
+              arm64 = [s for s in slices if s[0] == 0x0100000c]
+              assert len(arm64) == 1, arm64
+              _, _, off, size, _ = arm64[0]
+              fat = fat[off:off + size]
+          assert fat[:4] == b'\xcf\xfa\xed\xfe'
+          digest = hashlib.sha256(fat).hexdigest()
+          Path('kernelcache-sha256.txt').write_text(digest + '\n')
+          print('KERNELCACHE_SHA256 =', digest)
+          print('bytes =', len(fat))
+          PY
+          rm -f kernelcache.lzfse kernelcache.fat
+
+      - name: Detach
+        if: always()
+        run: |
+          disk=$(cat device.txt 2>/dev/null || true)
+          if [ -n "$disk" ]; then hdiutil detach "$disk" || true; fi
+
+      - name: Upload the pins
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios16-20H392-pins
+          path: |
+            volume-uuid.json
+            apfs.plist
+            kernelcache-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove the proprietary input
+        if: always()
+        run: rm -f 087-86698-044.dmg kernelcache.release.iphone10b
