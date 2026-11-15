@@ -1,0 +1,649 @@
+{
+  "sources": {
+    "firmware": "myron_images_OS3.0.23.0.WPMCNXM_20260127.0000.00_16.0_cn (vendor_boot base DTB Canoe v2, dtbo, gpt_main0.bin)",
+    "boot_log": "adb bugreport kernel log, 16 GB / 512 GB unit, soc_id 660, revision 2.0, hwversion 4.9.0"
+  },
+  "soc": {
+    "name": "SM8850",
+    "codename": "canoe",
+    "msm_id": "0x294",
+    "revision": 2,
+    "board_id": 8
+  },
+  "cpus": {
+    "psci_method": "smc",
+    "boot_midr": "0x512f0021",
+    "secondary": [
+      {
+        "cpu": 1,
+        "mpidr": "0x100",
+        "midr": "0x512f0021"
+      },
+      {
+        "cpu": 2,
+        "mpidr": "0x200",
+        "midr": "0x512f0021"
+      },
+      {
+        "cpu": 3,
+        "mpidr": "0x300",
+        "midr": "0x512f0021"
+      },
+      {
+        "cpu": 4,
+        "mpidr": "0x400",
+        "midr": "0x512f0021"
+      },
+      {
+        "cpu": 5,
+        "mpidr": "0x500",
+        "midr": "0x512f0021"
+      },
+      {
+        "cpu": 6,
+        "mpidr": "0x10000",
+        "midr": "0x513f0021"
+      },
+      {
+        "cpu": 7,
+        "mpidr": "0x10100",
+        "midr": "0x513f0021"
+      }
+    ]
+  },
+  "gic": {
+    "distributor": "0x17000000",
+    "distributor_size": "0x10000",
+    "redistributors": "0x17080000",
+    "redistributors_size": "0x200000",
+    "stride": "0x40000",
+    "redistributor_by_cpu": [
+      {
+        "cpu": 0,
+        "affinity": "0x0",
+        "frame": "0x17080000"
+      },
+      {
+        "cpu": 1,
+        "affinity": "0x100",
+        "frame": "0x170c0000"
+      },
+      {
+        "cpu": 2,
+        "affinity": "0x200",
+        "frame": "0x17100000"
+      },
+      {
+        "cpu": 3,
+        "affinity": "0x300",
+        "frame": "0x17140000"
+      },
+      {
+        "cpu": 4,
+        "affinity": "0x400",
+        "frame": "0x17180000"
+      },
+      {
+        "cpu": 5,
+        "affinity": "0x500",
+        "frame": "0x171c0000"
+      },
+      {
+        "cpu": 6,
+        "affinity": "0x10000",
+        "frame": "0x17200000"
+      },
+      {
+        "cpu": 7,
+        "affinity": "0x10100",
+        "frame": "0x17240000"
+      }
+    ]
+  },
+  "timer_hz": 19200000,
+  "dram_banks": [
+    {
+      "base": "0x80000000",
+      "size": "0x80000000"
+    },
+    {
+      "base": "0x880000000",
+      "size": "0x380000000"
+    }
+  ],
+  "linux_ram_ranges": [
+    {
+      "base": "0x81960000",
+      "size": "0xa0000"
+    },
+    {
+      "base": "0x81a60000",
+      "size": "0x1a0000"
+    },
+    {
+      "base": "0x81cf4000",
+      "size": "0xc000"
+    },
+    {
+      "base": "0x82478000",
+      "size": "0x28000"
+    },
+    {
+      "base": "0x82600000",
+      "size": "0x100000"
+    },
+    {
+      "base": "0x82800000",
+      "size": "0x2200000"
+    },
+    {
+      "base": "0x8a980000",
+      "size": "0x80000"
+    },
+    {
+      "base": "0x9959c000",
+      "size": "0x64000"
+    },
+    {
+      "base": "0x9ce80000",
+      "size": "0x2e00000"
+    },
+    {
+      "base": "0x9ffe0000",
+      "size": "0x70000"
+    },
+    {
+      "base": "0xa0910000",
+      "size": "0xa70000"
+    },
+    {
+      "base": "0xa6980000",
+      "size": "0x1d450000"
+    },
+    {
+      "base": "0xc4800000",
+      "size": "0x13000000"
+    },
+    {
+      "base": "0xd7c00000",
+      "size": "0x400000"
+    },
+    {
+      "base": "0xe0530000",
+      "size": "0x1bcd0000"
+    },
+    {
+      "base": "0xfc600000",
+      "size": "0x2dff000"
+    },
+    {
+      "base": "0xff400000",
+      "size": "0x400000"
+    },
+    {
+      "base": "0x880000000",
+      "size": "0x2f6fd000"
+    },
+    {
+      "base": "0x8b0000000",
+      "size": "0x5500000"
+    },
+    {
+      "base": "0x8b5700000",
+      "size": "0x1e00000"
+    },
+    {
+      "base": "0x8c0000000",
+      "size": "0x33ffff000"
+    },
+    {
+      "base": "0xbfffff000",
+      "size": "0x1000"
+    }
+  ],
+  "reserved_memory": [
+    {
+      "name": "qseecom_region",
+      "base": "0xf2400000",
+      "size": "0x1400000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "qseecom_ta_region",
+      "base": "0xf1000000",
+      "size": "0x1400000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "sp_region",
+      "base": "0xf0000000",
+      "size": "0x1000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "vm_comm_mem_region",
+      "base": "0xef800000",
+      "size": "0x800000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "cdsp_eva_region",
+      "base": "0xef400000",
+      "size": "0x400000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "non_secure_display_region",
+      "base": "0xe2c00000",
+      "size": "0xc800000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "adsp_heap_region",
+      "base": "0xe2000000",
+      "size": "0xc00000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "qmc_dma_region",
+      "base": "0xe1000000",
+      "size": "0x1000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "linux,cma",
+      "base": "0xd3c00000",
+      "size": "0x2400000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "debug_kinfo_region",
+      "base": "0xbfffff000",
+      "size": "0x1000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "va_md_mem_region",
+      "base": "0xd2c00000",
+      "size": "0x1000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "dump_mem_region",
+      "base": "0xbfa1ff000",
+      "size": "0x5e00000",
+      "kind": "map-non-reusable"
+    },
+    {
+      "name": "cnss_wlan_region",
+      "base": "0xd0c00000",
+      "size": "0x2000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "gunyah_hyp_region@80000000",
+      "base": "0x80000000",
+      "size": "0xe00000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "reserved_region@80e00000",
+      "base": "0x80e00000",
+      "size": "0x400000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "cpucp_pdp_region@81200000",
+      "base": "0x81200000",
+      "size": "0x200000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "xbl_dtlog_region@81a00000",
+      "base": "0x81a00000",
+      "size": "0x60000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "aop_image_region@81c00000",
+      "base": "0x81c00000",
+      "size": "0x60000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "aop_cmd_db_region@81c60000",
+      "base": "0x81c60000",
+      "size": "0x20000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "aop_tme_uefi_merged_region@81c80000",
+      "base": "0x81c80000",
+      "size": "0x74000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "smem_region@81d00000",
+      "base": "0x81d00000",
+      "size": "0x200000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "pdp_ns_shared_region@81f00000",
+      "base": "0x81f00000",
+      "size": "0x100000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "cpucp_scandump_region@82000000",
+      "base": "0x82000000",
+      "size": "0x380000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "adsp_mhi_region@82380000",
+      "base": "0x82380000",
+      "size": "0x20000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "soccp_sdi_region@823a0000",
+      "base": "0x823a0000",
+      "size": "0x40000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "pmic_minii_dump_region@823e0000",
+      "base": "0x823e0000",
+      "size": "0x80000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "qup_fw_region@82460000",
+      "base": "0x82460000",
+      "size": "0x18000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "pvm_fw_region@824a0000",
+      "base": "0x824a0000",
+      "size": "0x100000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "tz_stat_region@82700000",
+      "base": "0x82700000",
+      "size": "0x100000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "qdss_apps_region@82800000",
+      "base": "0x82800000",
+      "size": "0x2000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "dsm_partition_1_region@84a00000",
+      "base": "0x84a00000",
+      "size": "0x5500000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "dsm_partition_2_region@89f00000",
+      "base": "0x89f00000",
+      "size": "0xa80000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "mpss_region@8aa00000",
+      "base": "0x8aa00000",
+      "size": "0xeb00000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "q6_mpss_dtb_region@99500000",
+      "base": "0x99500000",
+      "size": "0x80000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "ipa_fw_region@99580000",
+      "base": "0x99580000",
+      "size": "0x10000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "ipa_gsi_region@99590000",
+      "base": "0x99590000",
+      "size": "0xa000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "gpu_microcode_region@9959a000",
+      "base": "0x9959a000",
+      "size": "0x2000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "camera_region@99600000",
+      "base": "0x99600000",
+      "size": "0x800000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "camera_2_region@99e00000",
+      "base": "0x99e00000",
+      "size": "0x800000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "video_region@9a600000",
+      "base": "0x9a600000",
+      "size": "0x800000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "cvp_region@9ae00000",
+      "base": "0x9ae00000",
+      "size": "0x700000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "cdsp_region@9b500000",
+      "base": "0x9b500000",
+      "size": "0x1900000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "q6_cdsp_dtb_region@9ce00000",
+      "base": "0x9ce00000",
+      "size": "0x80000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "spu_secure_shared_memory_region@9fc80000",
+      "base": "0x9fc80000",
+      "size": "0x40000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "spu_secure_shared_memory_region@9fcc0000",
+      "base": "0x9fcc0000",
+      "size": "0x40000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "spss_region_region@9fd00000",
+      "base": "0x9fd00000",
+      "size": "0x2e0000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "dcp_dtb_region@a0050000",
+      "base": "0xa0050000",
+      "size": "0x80000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "dcp_region@a00d0000",
+      "base": "0xa00d0000",
+      "size": "0x300000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "soccp_region@a03d0000",
+      "base": "0xa03d0000",
+      "size": "0x500000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "soccp_dtb_region@a08d0000",
+      "base": "0xa08d0000",
+      "size": "0x40000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "q6_adsp_dtb_region@a1380000",
+      "base": "0xa1380000",
+      "size": "0x80000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "adspslpi_region@a1400000",
+      "base": "0xa1400000",
+      "size": "0x5580000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "hypervisor_extended_heap_region@0xc3dd0000",
+      "base": "0xc3dd0000",
+      "size": "0xa30000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "xbl_ramdump_region@d7800000",
+      "base": "0xd7800000",
+      "size": "0x200000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "global_sync_region@d7a00000",
+      "base": "0xd7a00000",
+      "size": "0x200000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "tz_merged_region@d8000000",
+      "base": "0xd8000000",
+      "size": "0x800000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "trust_ui_vm_region@f3800000",
+      "base": "0xf3800000",
+      "size": "0x5000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "oem_vm_region@f8800000",
+      "base": "0xf8800000",
+      "size": "0x3800000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "dump_display_region@ff3ff800",
+      "base": "0xff3ff800",
+      "size": "0x800",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "ramoops-region",
+      "base": "0xff400000",
+      "size": "0x400000",
+      "kind": "map-non-reusable"
+    },
+    {
+      "name": "llcc_lpi_region@ff800000",
+      "base": "0xff800000",
+      "size": "0x800000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "lcp_dare_region",
+      "base": "0x880000000",
+      "size": "0x6000000",
+      "kind": "map-reusable"
+    },
+    {
+      "name": "shm@fc200000",
+      "base": "0xfc200000",
+      "size": "0x400000",
+      "kind": "nomap-non-reusable"
+    },
+    {
+      "name": "splash_region",
+      "base": "0xfc800000",
+      "size": "0x2b00000",
+      "kind": "map-non-reusable"
+    }
+  ],
+  "firmware_hidden_ranges": [
+    {
+      "base": "0x81400000",
+      "size": "0x560000"
+    },
+    {
+      "base": "0x825a0000",
+      "size": "0x60000"
+    },
+    {
+      "base": "0xd8800000",
+      "size": "0x7d30000"
+    },
+    {
+      "base": "0xff3ff000",
+      "size": "0x800"
+    },
+    {
+      "base": "0x8af6fd000",
+      "size": "0x903000"
+    },
+    {
+      "base": "0x8b5500000",
+      "size": "0x200000"
+    },
+    {
+      "base": "0x8b7500000",
+      "size": "0x8b00000"
+    }
+  ],
+  "splash_region": {
+    "base": "0xfc800000",
+    "size": "0x2b00000"
+  },
+  "userdata": {
+    "lun": 0,
+    "lba_bytes": 4096,
+    "first_lba": "0x39f200",
+    "last_lba_512gb": "0x7aaebfa",
+    "last_lba_rule": "NUM_DISK_SECTORS - 6"
+  },
+  "unixnu_partition": {
+    "name": "unixnu",
+    "lun": 0,
+    "lba_bytes": 4096,
+    "first_lba": "0x5aaeb00",
+    "last_lba": "0x7aaeaff",
+    "capacity_bytes": 137438953472,
+    "capacity_gib": 128,
+    "created": "2026-11-15",
+    "method": "UniXNU scripts/dual_sys/partition.py apply --size-gib 128 (in-place F2FS shrink + new GPT entry)",
+    "verified": "partition.py verify PASS; adb reboot system OK; all user files visible",
+    "android_userdata_after": {
+      "first_lba": "0x39f200",
+      "last_lba": "0x5aaeaff",
+      "capacity_bytes": 373923250176
+    },
+    "note": "unixnu is unformatted; OS/SystemOS windows are written by the unixnu userdata step"
+  }
+}

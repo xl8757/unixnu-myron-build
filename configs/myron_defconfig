@@ -1,0 +1,57 @@
+# Kernel configuration of myron. CONFIG_XNU_<NAME> becomes XNU_<NAME> for the kernel build.
+# The platform expert, the architectural CPU and timer, PAN, the original-PMGR integration (no hardware access) and the
+# storage/root chain of sheng: NativeUfs on the host the firmware left running, the verified root policies of the
+# iPad7,1 image, the owner root trust, the SystemOS union and the RAM Data volume; sheng's diagnostic page and its
+# CPU-copied GOP display. The GPU is not enabled: its driver targets the SM8550 Adreno.
+
+# The board archives of board.toml ([kernel] archives: boot progress, legacy display with touch and the GPU probe, ...):
+# since upstream 5e782ac the kernel step builds them only when the configuration opts in, as sheng's does (f507dbc).
+CONFIG_XNU_BUILD_ARCHIVES=y
+CONFIG_XNU_SOURCE_CORECRYPTO14=y
+CONFIG_XNU_SOURCE_PTHREAD=y
+CONFIG_XNU_ARM_DT_PLATFORM=y
+CONFIG_XNU_ARMCPU=y
+CONFIG_XNU_NATIVE_ARCH_TIMER=y
+CONFIG_XNU_NATIVE_PAN=y
+# The BCM2837 machine config puts the panic log at the fixed Raspberry Pi address 0x3c0fc000, which is device
+# space on SM8850: PE_create_console maps and clears it and the kernel dies before its console exists. Take the
+# panic region from the ADT instead (no pram node: no panic log).
+CONFIG_XNU_DT_PANIC_REGION=y
+# The original AMFI needs an ApplePMGR nub; the guarded original-PMGR integration provides one (sheng-pmgr=2).
+CONFIG_XNU_SHENG_PMGR=y
+
+# Storage and root. The UFS host (0x1d84000), apps SMMU (0x15000000) and UFS stream (0x60) of SM8850 are those of
+# SM8550. NativeUfs links against the verified VirtIO block bindings (build/storage-abi from
+# scripts/audit-storage-interface-static.py) and publishes the OS and SystemOS windows only under the signed
+# policies of build/verified-root-os and build/verified-root-systemos.
+CONFIG_XNU_NATIVE_UFS=y
+CONFIG_XNU_NATIVE_AES=y
+CONFIG_XNU_NATIVE_VIRTIO_BLOCK=y
+CONFIG_XNU_NATIVE_RAM_BLOCK=y
+CONFIG_XNU_TRUST_CACHE_RUNTIME=y
+CONFIG_XNU_NATIVE_CS_HASH_CACHE=y
+CONFIG_XNU_VERIFIED_ROOT_PROBE=y
+CONFIG_XNU_OWNER_ROOT_AUDIT=y
+CONFIG_XNU_OWNER_ROOT_TRUST=y
+CONFIG_XNU_OWNER_CACHE_MOUNT=y
+CONFIG_XNU_OWNER_CACHE_STARTUP=y
+CONFIG_XNU_OWNER_BOOT_MANIFEST=y
+CONFIG_XNU_OWNER_DATA_MOUNT=y
+CONFIG_XNU_OWNER_UNION_SYSTEMOS=y
+CONFIG_XNU_NATIVE_VIRTIO_BLOCK_ARCHIVE="{tree}/build/native-virtio-block-verified-bundle/libNativeVirtioBlock.a"
+CONFIG_XNU_VERIFIED_ROOT_ARCHIVE="{tree}/build/verified-root-os-xnu-bundle/libVerifiedRootProbe.a"
+CONFIG_XNU_EXTRA_LD_ARCHIVES=""
+# Volume UUID of this board's Data seed (scripts/prepare-owner-data-fixture.py, build/owner-data-fixture/seed.json).
+CONFIG_XNU_OWNER_DATA_VOLUME_UUID="DA0A68B3-8950-4E0C-9527-8AC5C426F5A9"
+
+# The on-screen diagnostic page of sheng (boot-progress=2): kernel console, stages, processes, storage and memory, drawn
+# into the framebuffer; also defines boot_progress_poll for NativeUfs (scripts/build-boot-progress.py, kits/myron).
+CONFIG_XNU_BOOT_PROGRESS=y
+# The iPadOS UI through the firmware framebuffer: NativeLegacyDisplay copies backboardd's software-rendered surface into
+# the GOP framebuffer on the CPU (scripts/build-native-legacy-display.py, offline-legacy-* arguments). No GPU.
+CONFIG_XNU_NATIVE_LEGACY_DISPLAY=y
+
+CONFIG_XNU_CRYPTO_BOOTSTRAP="prelinked"
+CONFIG_XNU_NATIVE_MOBILE_DISPLAY=n
+CONFIG_XNU_NATIVE_ADRENO=n
+CONFIG_XNU_ARMVIRT_PLATFORM=n

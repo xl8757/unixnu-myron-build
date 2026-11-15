@@ -6,55 +6,82 @@
   </picture>
 </p>
 
-<p align="center">
-  <a href="https://unixnu.com"><img alt="Documentation" src="https://img.shields.io/badge/docs-unixnu.com-2A5BD7?logo=readthedocs&logoColor=white"></a>
-  <a href="https://t.me/unixnu"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-@unixnu-26A5E4?logo=telegram&logoColor=white"></a>
-  <a href="https://qun.qq.com/universal-share/share?ac=1&authKey=Pubz23DOCY76nxjlGuSms2zesk4jRvas4zrXJRYk7omf7CprXbGQigLEI%2BCoYR8D&busi_data=eyJncm91cENvZGUiOiIxMTI2MTE2NzU5IiwidG9rZW4iOiJwSHJsUDN1UnN2Vi8yM210TjJRbzBIcERmcUpyOS9lb0hHVVpadWdvVFdScVpSYUFLT1YzTk5TWC9mN2xWYmtIIiwidWluIjoiMzE1MTEwOTc0MSJ9&data=_cJgr-jX9yJ2-GXwVjRN5FOhDyk5B-HAfIk5LSunbW_XkkmKqNXbpH33wzP93J0p9DI1fbjgBUrUfTVhwDcxjg&svctype=4&tempid=h5_group_info"><img alt="QQ Group" src="https://img.shields.io/badge/QQ%20Group-join-12B7F5?logo=qq&logoColor=white"></a>
-  <a href="https://x.com/unixnu"><img alt="X" src="https://img.shields.io/badge/X-@unixnu-000000?logo=x&logoColor=white"></a>
-</p>
+# UniXNU-myron
 
-<p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a>
-</p>
+Device repository for the Redmi K90 Pro Max (myron, SM8850). It holds the board file, kernel defconfig and device scripts.
 
-# UniXNU
-
-🎉 **News:** The native Metal GPU driver is now fully working on the Xiaomi Pad 6S Pro (sheng). The render server composites the system UI through the Adreno 740, and listed processes get their own Metal devices. See the [Adreno 740 driver documentation](https://unixnu.com/drivers/native-adreno).
-
-An independent project to run iOS and macOS on non-Apple ARM64 hardware through UEFI.
-
-## Documentation
-
-The documentation is at [unixnu.com](https://unixnu.com). It covers the boot chain, the build driver, device porting, driver development, the 4 KiB XNU page patches, boot arguments and per-device notes.
-
-- [Overview](https://unixnu.com/guide/overview)
+- [Documentation](https://unixnu.com)
+- [Porting guide](https://unixnu.com/porting/)
 - [Build](https://unixnu.com/building)
-- [Boot the image](https://unixnu.com/guide/boot)
-- [Debugging and logs](https://unixnu.com/guide/debugging)
-- [Porting](https://unixnu.com/porting/)
-- [Drivers](https://unixnu.com/drivers/overview)
-- [XNU and 4 KiB pages](https://unixnu.com/xnu/four-k-page-tables)
-- [Devices](https://unixnu.com/devices/)
 
-## Repositories
+Build with the `unixnu` driver of [UniXNU](https://github.com/UniXNU/UniXNU).
 
-| Repository | Contents |
+## State
+
+The Mu-Silicium port (`Platforms/Xiaomi/myronPkg`, derived from the OnePlus 15 package) starts through `fastboot boot` and reaches its boot manager with the bootloader framebuffer and the RAM partition table. The board file and the ADT generator carry the values read from the stock firmware and the stock kernel log.
+
+On top of that the tree boots iPadOS 17.7.11 (iPad7,1 userland) to SpringBoard: the UI presents on the firmware framebuffer, touch works, the Adreno 840 runs Metal through NativeMetal/Turnip, and the `unixnu` UFS partition carries a persistent Data store. Everything is RAM boots (`fastboot boot`); nothing is written outside the `unixnu` partition.
+
+The prime cores are `0x10000` and `0x10100` in MPIDR Affinity2. Secondary CPU startup needs the `native-smp-wide-affinity` XNU patch of UniXNU and `sheng-smp=1`; the default arguments start the boot CPU only.
+
+## Known-good boot arguments
+
+Beyond the arguments the board generates, these are needed on this device:
+
+| Argument | Why |
 | --- | --- |
-| [UniXNU](https://github.com/UniXNU/UniXNU) | Build driver, UEFI boot manager, module submodules and patches |
-| [UniXNU-sheng](https://github.com/UniXNU/UniXNU-sheng) | Device repository for the Xiaomi Pad 6S Pro |
-| [uefi-sheng](https://github.com/UniXNU/uefi-sheng) | UEFI firmware port for the Xiaomi Pad 6S Pro |
+| `sheng-smp=1` + `armcpu-spi-ipi=1` | start the secondary CPUs (their software-SPI IPIs) |
+| `myron-clear-sigp=1` + `myron-ipi-clearpend=1` | **always as a pair**: clear `SIGPdisabled` so `cpu_idle()` can idle, and clear the software SPI's pending bit after each interrupt. Alone, the first leaves the SPI asserted forever; without both the prime core takes ~3.5M IPIs/s and the phone runs hot |
+| `myron-dp-none=1` | report file-protection class D on the unprotected Data volume; without it PosterBoard rejects its own store ("Wallpaper Limit Reached") |
+| `myron-gpu=11 myron-gpu-metal=1 sheng-gpu-addon=1 sheng-fb-gpu=1` | Adreno 840 bring-up, the Metal plugin and the GPU scan-out hand-off |
+| `myron-cpufreq=2 myron-gpu-dcvs=1` | optional: SCMI CPU governor + GPU DCVS |
+| `sheng-vsync=120` | optional: publish 120 Hz (a work-loop timer, not the panel's vblank) |
 
-Drivers and kits are independent public repositories under the UniXNU organization, included as submodules. Clone with `--recurse-submodules`, or run `git submodule update --init --recursive`.
+Never use `armcpu-self-ipi=1`: it unblocks IPI delivery without the pending-bit clear and the core storms.
 
-Device repositories use the same layout as this repository. Their modules override modules with the same name, and their `package/` becomes a kit in the build tree.
+## Board values
 
-## Contributing
+| Item | Value | Source |
+| --- | --- | --- |
+| SoC | SM8850 Canoe, msm-id 0x294, revision 2 | `/sys/devices/soc0`, stock base DTB |
+| CPUs | `0,0x100,0x200,0x300,0x400,0x500,0x10000,0x10100`, PSCI `smc` | stock base DTB, kernel log |
+| GICv3 | distributor 0x17000000, redistributors 0x17080000 + n * 0x40000 | stock base DTB, kernel log |
+| Timer | 19.2 MHz | stock base DTB |
+| DRAM | 0x80000000 + 2 GiB, 0x880000000 + 14 GiB (16 GB unit) | kernel log |
+| Splash region | 0xfc800000, 0x2b00000 | stock dtbo overlay |
+| UniXNU disk | GPT entry `unixnu` (`[userdata] partition`): LUN 0, 4096-byte LBAs, 0x5aaeb00..0x7aaeaff (128 GiB); HyperOS `userdata` is 0x39f200..0x5aaeaff | GPT on the phone, `fastboot getvar` |
+| Boot image | header v0, gzip(BootShim + FD) with the Canoe v2 base DTB appended; the ABL applies the dtbo overlay | tested with `fastboot boot` |
+| Ramdisk | with header v4 the ABL loads the generic ramdisk from `init_boot`, not the boot image's, so the payload needs header v0 | `fastboot boot`, initrd size |
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for the repository scope, the development workflow, the commit format and the documentation rules.
+`scripts/data/myron-observed.json` records the reserved memory, the RAM ranges the kernel received and the ranges the firmware hides. A UEFI memory map must keep all of them out of conventional memory.
 
-## Private blobs
+## Scripts
 
-Do not add Apple IPSW files, kernelcaches, disk images, trust caches, Data seeds or vendor firmware to this repository. Keep them in a local cache or external storage.
+| Script | Purpose |
+| --- | --- |
+| `scripts/make-myron-adt.py` | Apple-format device tree for the first boot |
+| `scripts/extract-myron-dtb.py` | Stock Canoe base DTB from `vendor_boot.img`, for `unixnu bootimg --dtb` |
+| `scripts/build-arm-driver.py` | Compiles a generic driver against the XNU compile records (from UniXNU-sheng) |
+
+## Device support
+
+| Feature | State | Notes |
+| --- | --- | --- |
+| UEFI | ⚠️ | Mu-Silicium boots to its boot manager; no storage or input in UEFI, the kernel gets the RAM partition table |
+| Touch | ✅ | FT3683 on QUP SE19 SPI (`MyronTouch.cpp`, `myron-touch=`) feeding the HID source |
+| Display | ⚠️ | The firmware GOP framebuffer (1220x2656); the panel is not re-initialised (no DSC init), refresh is a work-loop timer |
+| UFS | ⚠️ | XNU side: NativeUfs on the `unixnu` partition (persistent Data store); UEFI side: none |
+| Wi-Fi | ❌ | |
+| Bluetooth | ❌ | |
+| Camera | ❌ | |
+| GPU | ⚠️ | Adreno 840 / A8XX run mode, Metal via NativeMetal + Turnip; the UI renders, some wallpapers and previews are still blank and the scan-out hand-off stalls intermittently |
+| USB | ❌ | |
+| Audio | ❌ | |
+| Sensors | ❌ | |
+| Battery driver | ❌ | |
+| Suspend and resume | ❌ | CPU idle (WFI/PSCI) works; system sleep does not |
+
+✅ available, ⚠️ partial, ❌ not available.
 
 ## License
 

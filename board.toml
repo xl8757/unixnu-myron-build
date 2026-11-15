@@ -1,0 +1,270 @@
+# Board description of the Redmi K90 Pro Max (myron, SM8850 / Canoe), read by the unixnu build driver.
+# The UEFI port is a Mu-Silicium checkout with Platforms/Xiaomi/myronPkg (--uefi); it boots to its boot manager.
+
+[board]
+name = "myron"
+soc = "SM8850"
+description = "Redmi K90 Pro Max (myron, SM8850 / Canoe)"
+kit = "myron"                      # the package/ of this repository appears as kits/myron in the build tree
+
+# The target OS image: the same unchanged iPad7,1 iPadOS 17.7.11 restore image as sheng. The kernel prelink pin,
+# the trust caches and the recorded audit data of UniXNU belong to this image.
+[ipsw]
+url = "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/122-77166/DCA6CFE8-90E9-4B92-880D-3DE171798E40/iPad_Pro_HFR_17.7.11_21H461_Restore.ipsw"
+product = "iPad7,1"
+version = "17.7.11"
+build = "21H461"
+device_class = "j120ap"
+chip_id = 0x8011
+board_id = 12
+fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustCache"]   # the small components
+
+[ipsw.sha256]
+"044-76040-038.dmg" = "3f99b859c9728379110b66657c7b15285bcb1925ad8b5726542e2cdcf8b1028d"
+"044-76034-038.dmg" = "b4908cde41d23e6bc05e6af51a2c9eeb00cf0f863a6a18b1600c96a3fd70414f"
+
+# Dual-system layout on THIS myron unit (2026-11-15). The dedicated 128 GiB
+# `unixnu` GPT entry was carved from the tail of userdata with the upstream
+# scripts/dual_sys/partition.py (in-place F2FS shrink + new GPT entry), verified
+# with `partition.py verify` (PASS) and `adb reboot system` (all files visible).
+# Android userdata keeps 0x39F200..0x5AAEAFF (348.243 GiB) and is never written.
+# The builder turns partition="unixnu" into `fastboot flash unixnu` and adds
+# `native-ufs-partition=unixnu` to kernel args (see unixnu/payload.py).
+[userdata]
+partition = "unixnu"
+first_lba = 0x5AAEB00
+last_lba  = 0x7AAEAFF
+lba_bytes = 4096
+windows = [
+  { name = "OS", component = "OS" },
+  { name = "SystemOS", component = "Cryptex1,SystemOS" },
+]
+
+[kernel]
+defconfig = "myron_defconfig"
+# Archive builders of the kernel step, in order. The platform expert and the architectural CPU, then the storage/root
+# chain of sheng: the storage ABI (static audit of this board's previous prelinked kernel), NativeAES, NativeUfs, the
+# verified VirtIO block bindings NativeUfs links against, the RAM Data block and the verified root policy bundle
+# (build/verified-root-os and build/verified-root-systemos must exist; see the stage 6 notes), then sheng's diagnostic
+# page and CPU-copied GOP display without its SM8550 probes, with myron's touch and Adreno 840 bring-up in its archive.
+archives = [
+  "build-corecrypto-14.py",
+  "build-corecrypto-14.py --namespace",
+  "build-arm-driver.py ArmDTPlatform",
+  "build-arm-driver.py ArmCpu",
+  "audit-storage-interface-static.py",
+  "build-arm-driver.py NativeAES",
+  "build-native-aes-bindings.py",
+  "build-arm-driver.py NativeUfs",
+  "build-arm-driver.py NativeVirtioBlock --verified-root --verified-root-bundle",
+  "build-native-virtio-bindings.py --component NativeVirtioBlock --directory build/native-virtio-block-verified-bundle",
+  "build-arm-driver.py NativeRamBlock",
+  "build-native-virtio-bindings.py --component NativeRamBlock --directory build/native-ram-block",
+  "build-verified-root-probe.py --component os --include-systemos",
+  "build-boot-progress.py",               # the diagnostic page (CONFIG_XNU_BOOT_PROGRESS), kits/myron
+  # The original AMFI panics "No PMGR?" without an ApplePMGR nub: the guarded original-PMGR integration of sheng
+  # (CONFIG_XNU_SHENG_PMGR, kernel argument sheng-pmgr=2). Its builder needs this board's previous prelinked kernel.
+  "prepare-pmgr-reference.py",
+  "build-sheng-platform-power.py",
+  # The staged AGXAccelerator of NativeAdreno (the Metal discovery's accelerator, myron-gpu-metal=1), bound to the audited
+  # original IOAcceleratorES of this kernelcache; the display archive below takes its late object.
+  "build-native-adreno-accelerator.py",
+  # The CPU-copied GOP display (CONFIG_XNU_NATIVE_LEGACY_DISPLAY); its ABI audit reads the reference kernel above. The archive
+  # also carries touch (kits/myron MyronTouch.cpp) and the Adreno 840 bring-up (MyronGpuPower.cpp with NativeAdreno's objects).
+  "build-native-legacy-display.py",
+  "build-libpthread-kernel.py",
+]
+
+[kernel.prelink]
+tool = "kits/NativePrelink/emit_prelink.py"
+kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf"
+kernelcache_sha256 = "f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7"
+slide = "-0x1000000"
+early_security_init = "com.apple.driver.AppleMobileFileIntegrity=0xfffffff005ab4ae0"
+roots = [
+  "com.apple.AppleFSCompression.AppleFSCompressionTypeZlib",
+  "com.apple.driver.AppleARMPlatform",
+  "com.apple.driver.AppleARMWatchdogTimer",
+  "com.apple.driver.AppleAudioClockLibs",
+  "com.apple.driver.AppleEffaceableStorage",
+  "com.apple.driver.AppleIISController",
+  "com.apple.driver.AppleM2ScalerCSCDriver",
+  "com.apple.driver.AppleMobileFileIntegrity",
+  "com.apple.driver.ApplePMGR",
+  "com.apple.driver.IODARTFamily",
+  "com.apple.filesystems.apfs",
+  "com.apple.iokit.CoreAnalyticsFamily",
+  "com.apple.iokit.IOAVFamily",
+  "com.apple.iokit.IOAudio2Family",
+  "com.apple.iokit.IOCECFamily",
+  "com.apple.iokit.IOCryptoAcceleratorFamily",
+  "com.apple.iokit.IOGPUFamily",
+  "com.apple.iokit.IOHDCPFamily",
+  "com.apple.iokit.IOMobileGraphicsFamily",
+  "com.apple.iokit.IOReportFamily",
+  "com.apple.iokit.IOSlowAdaptiveClockingFamily",
+  "com.apple.iokit.IOStorageFamily",
+  "com.apple.iokit.IOSurface",
+  "com.apple.kec.Libm",
+  "com.apple.kec.corecrypto",
+  "com.apple.kext.AppleMatch",
+  "com.apple.kext.CoreTrust",
+  "com.apple.security.AppleImage4",
+  "com.apple.security.sandbox",
+  "com.apple.iokit.IOHIDFamily",
+  "com.apple.iokit.IOHIDEventDriver",
+]
+
+# The Mu-Silicium port: myronPkg is derived from the OnePlus 15 (infiniti, SM8850) package.
+[firmware]
+config = "myron"                      # Resources/Configs/myron.toml in the local myron-uefi checkout (--uefi)
+dsc = "Platforms/Xiaomi/myronPkg/myron.dsc"
+fd = "Build/myronPkg/{target}_CLANGPDB/FV/SILICIUM_UEFI.fd"
+submodules = ["Common/Mu", "Common/Mu_OEM_Sample", "Silicium-ACPI", "Silicon/Silicium/OpensslPkg/Library/OpensslLib/openssl"]
+# The Mu_Basecore patches Mu-Silicium's build_uefi.py applies, so this build matches the firmware tested on the phone
+patches = [
+  "Resources/MuPatches/AsmMacroLib.patch",
+  "Resources/MuPatches/Auth-Service.patch",
+  "Resources/MuPatches/Boot-Manager.patch",
+  "Resources/MuPatches/Timer.patch",
+  "Resources/MuPatches/Usb-Bus.patch",
+]
+packages = [
+  "{uefi}",
+  "{uefi}/Platforms/Xiaomi",
+  "{tree}/package",
+  "{tree}/drivers/DarwinBoot",
+  "{edk2}",
+  "{uefi}/Common/Mu",
+  "{uefi}/Common/Mu_OEM_Sample",
+  "{uefi}/Silicon/Qualcomm",
+  "{uefi}/Silicon/Silicium",
+  "{uefi}/Silicium-ACPI",
+  "{uefi}/Silicium-ACPI/Platforms/Xiaomi",
+  "{uefi}/Silicium-ACPI/Silicon/Qualcomm",
+]
+
+# As build_uefi.py built the firmware tested on the phone (Secure Boot off)
+[firmware.defines]
+ENABLE_SECUREBOOT = "0"
+DEVICE_MODEL = "0"
+MEMORY_PROTECTION = "TRUE"
+SHIP_MODE = "FALSE"
+BUILDID_STRING = "myron-research"
+
+# The ramdisk of the boot image: a FAT volume with the UniXNU config, the kernel, its device tree and
+# the optional trust cache and Data seed. The loader (DarwinBoot) is part of the firmware volume.
+[payload]
+volume = "MYRONESP"
+size_mib = 192
+loader = "firmware"
+title = "myron first boot: source 4K XNU to console"
+dram_size = "0x80000000"             # first DRAM bank, 0x80000000..0x100000000 (boot log); XNU only reports it
+skip_setup_tool = "scripts/seed-data-skip-setup.py"   # used by --skip-setup
+# --migration-pending records an older LastSystemVersion in com.apple.migration, so DataMigrator runs the first-boot
+# migration plugins instead of treating this build as already migrated. SystemAppMigrator is the plugin that installs
+# the removable system apps (Weather, Notes, Calendar, ...) the kernel copies into the Data volume's
+# /private/var/staged_system_apps (zzy-staged-system-apps.patch, sheng-staged-apps=1); without it the copy is never
+# installed and the home screen keeps only Photos/App Store/Settings (2026-10-25). With a persistent Data volume the
+# migration records the build once; with the RAM seed it runs again on every boot.
+skip_setup_args = ["--migration-pending"]
+panic_screen = true                  # scripts/patch-xnu-entry-probe.py (from UniXNU-sheng): blue bar at the kernel entry,
+                                     # magenta before the MMU, panic() text on the frame buffer
+# The original static/System trust caches of the iPad7,1 image, as on sheng.
+trust_cache_sha256 = [
+  "7416ca4f8377146626bb284e2133c76bee6cb4e3ee0af5d648b186235a7323a7",
+  "8900d6a93d7a59ce1a872a5c081e559f4240a218f97e12d44d22dda46644d68f",
+]
+# Root: NativeUfs takes over the UFS host the firmware left running and mounts the OS window of the `unixnu`
+# partition (native-ufs-partition comes from [userdata] partition). Data is the RAM seed of the payload, at most 2 GiB
+# so that it stays a sparse RAM disk (scripts/seed-data-ram-size.py); nothing is written to the disk (no
+# sheng-data-persist, no sheng-log). Before the root image is flashed, native-ufs-probe=10 checks the GPT and the
+# partition read-only.
+kernel_args = [
+  "-v",
+  "serial=3",
+  "debug=0x14e",
+  "kt_fixed_zones=120",
+  "armcpu-diagnostics=1",
+  "sheng-pmgr=2",                    # publish the original ApplePMGR nub for AMFI (no power operations)
+  "native-ufs-root=1",
+  # The firmware maps the UFS stream itself (apps SMMU SMR 0 -> context bank 0) and the context bank attribute page
+  # takes an external abort from EL1 (hardware 2026-10-22): keep that mapping, write nothing to the SMMU.
+  "native-ufs-smmu=1",
+  "native-ufs-diagnostics=1",        # a root bring-up failure panics with the NativeUfs stage and registers
+  "offline-apfs-load=1",
+  "-apfs_shared_datavolume",
+  "-no_slto_panic",
+  "ml-timeout-lock-panic-scale=40",
+  # The diagnostic page: live on the panel until the OS presents its first frame. The panic screen draws through the
+  # page's framebuffer binding, so boot-progress stays set. For debugging, boot-diag-resume=<s> takes the panel back
+  # after <s> seconds without a frame (the static lock screen presents one a minute) and sheng-banner=1 (default)
+  # overlays the live crash banner on the UI.
+  "boot-progress=2",
+  "boot-progress-scale=2",            # 100 of 120 columns on the 1200-pixel panel (kits/myron BootProgress.c)
+  "sheng-banner=0",
+  "sheng-build-tag=myron-first",
+  # The iPadOS UI through the GOP framebuffer, copied by the CPU (sheng's path without the GPU hand-off)
+  "offline-mobile-graphics-load=1",
+  "offline-legacy-register=1",
+  "offline-legacy-phase=4",
+  "offline-legacy-gop=1",
+  "offline-legacy-pm=1",
+  "offline-legacy-validate=1",
+  "offline-legacy-transfer=1",
+  "offline-legacy-cpu-present=1",
+  "offline-legacy-unit-scale=3",      # 400x869 points on the 1200x2608 panel: @3x, the phone layout of phone_identity
+  # The owned AppleKeyStore (kits/myron KeyStoreProbe.cpp, NativeKeyStoreEvents): no passcode, nothing locked, so the
+  # data-protected files open (daemons crashed on NSExceptions and SpringBoard stayed at the Apple logo without it)
+  "sheng-aks=1",
+  "offline-key-events=1",
+  # Input: the owned HID source (HidInputProbe.cpp + NativeHidInput, as on sheng); the volume-up key (TLMM GPIO101)
+  # sends Home, which opens the passcode-less lock screen. Hold it about a second (polled once a second).
+  # myron-volup-home=2 panics with the GPIO registers on the first press instead (detection test).
+  "offline-hid-input=1",
+  "offline-hid-home=1",
+  "myron-volup-home=1",
+  # Touch: the FT3683 on QUP4 SE0 (kits/myron MyronTouch.cpp) feeds NativeHidInput's digitizer (hardware 2026-10-22: taps
+  # and swipes land under the finger). Needs the firmware's TouchPowerDxe for iovdd (L4I). The driver thread runs on the
+  # boot core (myron-touch-bind, default 1): left to the scheduler it barely ran. myron-touch=1..4, 6 and 7 are bring-up
+  # stages that panic with what they read.
+  "myron-touch=5",
+  "sheng-touch-hid=1",
+  # All eight cores (hardware 2026-10-22: SMP run=7). The prime cores sit in Affinity2 (native-smp-wide-affinity patch);
+  # IPIs are software-pended SPIs, as on sheng, where ICC_SGI1R_EL1 delivers nothing.
+  "sheng-smp=1",
+  "armcpu-spi-ipi=1",
+]
+
+[payload.adt]
+tool = "scripts/make-myron-adt.py"
+chip_id = "207"                      # IOPlatformUUID seed with --unique-chip-id, not a hardware ID
+owned_memory_size = "0x200000000"    # DarwinBoot's maximum (8 GiB) in the 13 GiB RAM run at 0x8c0000000. It used to stop
+                                     # XNU before the MMU was on: that was the 16-page bootstrap page-table pool running out
+                                     # (2 roots + 8 physical + 8 virtual L2 pages), not the memory itself; the 4 KiB pool is
+                                     # now 34 pages (Apple's large-memory value).
+root_match_volume_uuid = "04769D26-2CA0-4825-B443-E2E5F88300F2"   # OS volume of the iPad7,1 image
+cpu_regs = "0,0x100,0x200,0x300,0x400,0x500,0x10000,0x10100"
+psci_method = "smc"
+packed_data_ramdisk = true
+# persistent_data = true             # Marks the Data volume persistent (no ephemeral-storage) so the first-boot migration
+                                     # installs the staged system apps. On myron a RAM Data volume then never presents a frame
+                                     # (2026-10-25), so it stays off: the apps are copied but not installed.
+# Device identity written into the ADT (MobileGestalt answers hw.product / artwork-device-idiom from it). Exactly one:
+# ipad_identity presents iPad7,1 (pad idiom, iPad Pro artwork); phone_identity presents iPhone10,3 / D22 (phone idiom,
+# iPhone X artwork) so iPadOS userland lays out the phone interface on myron's panel. The root stays the iPadOS image.
+phone_identity = true
+phone_model = "iPhone15,2"           # 14 Pro (393x852 @3x); the panel is 400x869 @3x, closer than the default iPhone X
+# ipad_identity = true
+unique_chip_id = "required"          # the platform seed is not stored in any repository
+
+# Image parameters come from the Mu-Silicium device config; [bootimg.image] would override them.
+
+# The stock ABL powers the panel off when the device tree has no splash region, and checks the node size.
+# Values from the stock myron dtbo overlay (fragment 197).
+[[bootimg.dtb_node]]
+path = "/reserved-memory/splash_region"
+props = [
+  { name = "label", type = "s", value = "cont_splash_region" },
+  { name = "reg", type = "x", value = ["0x0", "0xfc800000", "0x0", "0x2b00000"] },
+]
