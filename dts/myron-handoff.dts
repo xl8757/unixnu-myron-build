@@ -27,15 +27,12 @@
         reg = <0x0 0x80000000 0x0 0x80000000>;
     };
 
-    // Measured on this unit (myron-observed.json): the ABL splash buffer that
-    // the boot image's [[bootimg.dtb_node]] entries address. Values, not guesses.
+    // The boot image's [[bootimg.dtb_node]] entries create their own children
+    // here with fdtput -c, so only the parent exists in this tree.
     reserved-memory {
         #address-cells = <0x2>;
         #size-cells = <0x2>;
         ranges;
-        splash_region: splash_region@fc800000 {
-            reg = <0x0 0xfc800000 0x0 0x2b00000>;
-        };
     };
 
     cpus {
