@@ -1,0 +1,211 @@
+name: Build myron iOS 16.7.16 payload
+
+# Second Format 2 stage for the myron / 20H392 port: kernel -> OS window fetch ->
+# writable Data seed -> payload (ADT + trustcache + scratch-data).
+# The device repository lives on branch device/myron-ios16; the Format 2 UniXNU
+# checkout is cloned fresh from upstream. Read-only with respect to any phone:
+# no fastboot, no flashing.
+#
+# Why the seed is built here and not locally: scripts/build-data-seed.py needs
+# hdiutil to make an APFS volume holding the OS volume's private/var and packs it
+# with DarwinBoot's DBRDISK1 writer. It refuses a mount that is not an OS volume
+# (it checks sbin/launchd) and has no iOS-version-specific assumption: it reports
+# the launchd hash it saw instead of comparing it to a pinned one.
+#
+# The restore image is read member by member over HTTP Range, never downloaded as
+# a whole, and every member is checked against the pins in board.toml
+# [ipsw.sha256] and in the OS profile.
+
+on:
+  push:
+    branches: [ci/build-myron-ios16-payload]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # prepare-xnu-source.py talks to the GitHub API; unauthenticated requests hit
+  # the rate limit mid-build (HTTP 403). The upstream macos.yml does the same.
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # The platform seed is not stored in any repository. The same secret already
+  # feeds the iPadOS 17.7.11 pipeline in this repo.
+  UNIXNU_UNIQUE_CHIP_ID: ${{ secrets.UNIXNU_UNIQUE_CHIP_ID }}
+  DATA_SEED_MIB: "256"
+
+concurrency:
+  group: myron-ios16-payload
+  cancel-in-progress: true
+
+jobs:
+  payload:
+    runs-on: macos-latest
+    timeout-minutes: 360
+    steps:
+      - name: Clone the Format 2 UniXNU tree and the device repository
+        run: |
+          git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
+          git clone --depth 1 --branch device/myron-ios16 \
+            https://github.com/xl8757/unixnu-myron-build.git device
+          cp -R device/os-profiles/ios-16.7.16-20H392 unixnu/profiles/os/
+          echo "UniXNU $(git -C unixnu rev-parse --short HEAD)"
+          echo "device  $(git -C device rev-parse --short HEAD)"
+
+      # Only DarwinBoot is needed for the seed (its Test/packed_ramdisk.py is the
+      # DBRDISK1 writer); the rest of the submodules are not worth fetching.
+      - name: Fetch the DarwinBoot submodule
+        run: git -C unixnu submodule update --init --depth 1 drivers/DarwinBoot
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Host toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          command -v compression_tool
+          brew install cmake ninja unifdef llvm lld mtools dtc
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --disable-pip-version-check uefi_firmware==1.16
+
+      - name: Resolve the configuration (offline-friendly, no phone)
+        run: |
+          cd unixnu
+          python3 unixnu defconfig myron_ios16_defconfig -D ../device
+          python3 unixnu fetch -D ../device
+          python3 unixnu status -D ../device | tee ../status.txt
+
+      - name: Build kernel
+        id: kernel
+        env:
+          # xnu-8796 does not emit per-object compile records. The archive
+          # builders replay them, and NX769J's build.yml solves this by pointing
+          # XNU's $(CCACHE) $(CC) hook at scripts/compile-records.py.
+          CCACHE: python3 ${{ github.workspace }}/device/scripts/compile-records.py
+        run: |
+          cd unixnu
+          python3 unixnu build kernel -D ../device
+
+      # Reads only the members it needs out of the remote zip and leaves them in
+      # unixnu/out/ipsw/20H392/, each checked against its pinned sha256.
+      - name: Fetch the OS window and the static trust cache
+        run: |
+          cd unixnu
+          python3 unixnu ipsw fetch -D ../device OS StaticTrustCache
+          echo "== fetched =="
+          find out/ipsw -maxdepth 2 -type f | while read -r f; do ls -l "$f"; done
+
+      - name: Verify the fetched members and pick the trust cache
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, os, sys, tomllib
+          from pathlib import Path
+          prof = tomllib.loads(Path('device/os-profiles/ios-16.7.16-20H392/profile.toml')
+                               .read_text(encoding='utf-8'))
+          pins = prof['ipsw']['sha256']
+          allowed = set(prof['payload']['trust_cache_sha256'])
+          cache = Path('unixnu/out/ipsw/20H392')
+          found = {p.name: p for p in cache.iterdir() if p.is_file() and p.suffix != '.json'}
+          if not found:
+              sys.exit(f'nothing fetched into {cache}')
+          # Only the members this stage asked for are present; the SystemOS dmg is
+          # not fetched here, so its pin is simply not checked.
+          for name, pin in pins.items():
+              path = found.get(name)
+              if path is None:
+                  print(f'{name} not fetched by this stage (pin not checked)')
+                  continue
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              if digest != pin:
+                  sys.exit(f'{name} hashes to {digest}, the profile pins {pin}')
+              print(f'{name} {path.stat().st_size} B {digest[:16]}... OK')
+          dmg = [p for n, p in found.items() if n.endswith('.dmg')]
+          if len(dmg) != 1:
+              sys.exit(f'expected exactly one fetched dmg, got {[p.name for p in dmg]}')
+          tcs = [p for p in found.values() if p.suffix == '.trustcache']
+          good = [p for p in tcs if hashlib.sha256(p.read_bytes()).hexdigest() in allowed]
+          if len(good) != 1:
+              sys.exit(f'expected one allow-listed trust cache, got {[p.name for p in good]} of {[p.name for p in tcs]}')
+          Path('trust-cache.path').write_text(str(good[0].resolve()) + '\n')
+          Path('os-dmg.path').write_text(str(dmg[0].resolve()) + '\n')
+          print(f"os dmg     : {dmg[0].name}")
+          print(f"trust cache: {good[0].name}")
+          PY
+          cat os-dmg.path trust-cache.path
+
+      - name: Mount the OS volume read-only
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/os-mount"
+          hdiutil attach -readonly -nobrowse -owners off \
+            -mountpoint "$RUNNER_TEMP/os-mount" "$(cat os-dmg.path)"
+          ls "$RUNNER_TEMP/os-mount" | head
+          df -h "$RUNNER_TEMP" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the writable Data seed
+        id: seed
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          set +e
+          python3 device/scripts/build-data-seed.py \
+            --os-mount "$RUNNER_TEMP/os-mount" \
+            --output "$RUNNER_TEMP/out/myron-data.dbr" \
+            --size-mib "$DATA_SEED_MIB" \
+            --unixnu unixnu \
+            --work "$RUNNER_TEMP/seed-work" > "$RUNNER_TEMP/out/build-data-seed.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/out/build-data-seed.log"
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=build-data-seed::$(tail -n 1 "$RUNNER_TEMP/out/build-data-seed.log")"
+            exit "$status"
+          fi
+          hdiutil detach "$RUNNER_TEMP/os-mount" || true
+          ls -l "$RUNNER_TEMP/out"
+
+      - name: Build payload
+        id: payload
+        run: |
+          set -euo pipefail
+          KERNEL=$(find "$PWD/unixnu/out" -name kernel.macho -type f | head -1)
+          if [ -z "$KERNEL" ]; then echo "::error title=payload::kernel.macho missing"; exit 1; fi
+          echo "kernel: $KERNEL"
+          if [ -z "$UNIXNU_UNIQUE_CHIP_ID" ]; then
+            echo "::error title=payload::UNIXNU_UNIQUE_CHIP_ID secret is empty"; exit 1
+          fi
+          cd unixnu
+          python3 unixnu build payload -D ../device \
+            --kernel "$KERNEL" \
+            --data-ramdisk "$RUNNER_TEMP/out/myron-data.dbr" \
+            --trust-cache "$(cat ../trust-cache.path)" \
+            --unique-chip-id "$UNIXNU_UNIQUE_CHIP_ID"
+          echo "== payload outputs =="
+          find out -type d -name payload | head
+          find out -path '*payload*' -type f | while read -r f; do ls -l "$f"; done | head -30
+
+      - name: Dump the build logs on failure
+        if: failure()
+        run: |
+          for f in $(find unixnu/out -name '*.log' -type f | head -8); do
+            echo "===== $f ====="; tail -n 120 "$f"
+          done
+
+      - name: Upload logs, payload and kernel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: myron-ios16-payload
+          path: |
+            unixnu/out/**/kernel/**
+            unixnu/out/**/payload/**
+            unixnu/out/**/logs/**
+            status.txt
+            trust-cache.path
+          if-no-files-found: warn
+          retention-days: 14
