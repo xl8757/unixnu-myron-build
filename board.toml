@@ -225,22 +225,6 @@ props = [
   { name = "reg", type = "x", value = ["0x0", "0xfc800000", "0x0", "0x2b00000"] },
 ]
 
-# UFS must be enabled for IortDtDxe to emit its IORT node and for UFSDxe to bind.
-# The stock DTB ships both nodes with status = "disabled" because Android's
-# bootloader enables them in its own overlay; under UniXNU nothing does, which is
-# why the 2026-11-15 log said "Failed to Find UFS IORT Node!".
-[[bootimg.dtb_node]]
-path = "/soc/ufshc@1d84000"
-props = [
-  { name = "status", type = "s", value = "okay" },
-]
-
-[[bootimg.dtb_node]]
-path = "/soc/ufsphy_mem@1d80000"
-props = [
-  { name = "status", type = "s", value = "okay" },
-]
-
 [payload]
 volume = "MYRONESP"
 size_mib = 208
