@@ -98,11 +98,15 @@ jobs:
           python3 unixnu defconfig myron_ios16_defconfig -D ../device
           python3 unixnu fetch -D ../device
 
-      - name: Compile the handoff device tree
+      - name: Check the device trees
         run: |
           set -euo pipefail
+          # The ADT tree (handoff) and the ABL tree are different artefacts:
+          # the ADT is built from the curated dts in the device repo, while the
+          # bootloader needs the full stock DTB the firmware package ships.
           dtc -I dts -O dtb -o hardware.dtb device/dts/myron-handoff.dts
-          ls -l hardware.dtb
+          ls -l hardware.dtb uefi/Resources/DTBs/myron.dtb
+          shasum -a 256 uefi/Resources/DTBs/myron.dtb | tee dtb.sha256
 
       - name: Build the boot image
         id: bootimg
@@ -114,7 +118,7 @@ jobs:
           python3 unixnu bootimg -D ../device \
             --uefi ../Mu-Silicium \
             --fd ../SILICIUM_UEFI.fd \
-            --dtb ../hardware.dtb \
+            --dtb ../uefi/Resources/DTBs/myron.dtb \
             --ramdisk "$RAMDISK_ARG"
           echo "== boot image =="
           find out -name 'boot.img' -o -name 'boot.json' | while read -r f; do ls -l "$f"; done
@@ -128,6 +132,11 @@ jobs:
           report = next(Path('unixnu/out').rglob('boot.json'))
           data = json.loads(report.read_text())
           print(json.dumps(data, indent=2)[:2000])
+          dtb = data.get('dtb_sha256')
+          want = Path('dtb.sha256').read_text().split()[0]
+          if dtb != want:
+              raise SystemExit(f'FAIL: boot.json dtb_sha256 {dtb} != full DTB {want}')
+          print(f'dtb_sha256 matches the full stock DTB: {dtb[:16]}...')
           ramdisk = data.get('ramdisk_bytes') or 0
           print(f'ramdisk_bytes = {ramdisk}')
           if ramdisk == 0:
@@ -148,6 +157,7 @@ jobs:
             fd.sha256
             payload.sha256
             hardware.dtb
+            dtb.sha256
             unixnu/out/**/logs/**
           if-no-files-found: warn
           retention-days: 14
