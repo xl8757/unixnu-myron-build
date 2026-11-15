@@ -1,0 +1,465 @@
+name: Build
+
+# Build tests for the NX769J device repository.
+#
+#   validate         repository structure, TOML, pins, defconfig, and the UniXNU
+#                    porting-record checker against the real component catalog
+#   device-tree      compiles dts/nx769j.dts against the pinned SoC DTSI with dtc
+#   resolve          installs the device-provided OS profile into the UniXNU
+#                    checkout, then runs the build driver through the documented
+#                    step 4 sequence: fetch resolves every source pin, defconfig
+#                    merges the ordered profile fragments, tree assembles the
+#                    build tree, and status reports the resolved profiles,
+#                    components, source revisions and patch order
+#   partition-safety runs the offline dual-system partition tests that back the
+#                    non-destructive install path: they assert that GPT entries
+#                    and GUIDs are preserved, that a check pass writes nothing,
+#                    and that any failure blocks GPT writes
+#   kernel           the real gate: builds and links XNU 8796 with the rebased
+#                    series on Linux, using the UniXNU open source Mach-O
+#                    toolchain. CI stops at the prelink half, which needs the
+#                    iOS 16.5 restore image and cannot hold it; see the step.
+#
+# Assembling firmware, payload and boot images needs the uefi-nx769j platform
+# package and an Xcode host. The firmware design and the files it adds are in
+# docs/UEFI-FIRMWARE.md and firmware/; see porting.toml for what is still open.
+#
+# Booting the image, and confirming that Android still boots afterwards,
+# requires the device; see README.md for the device verification order.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the device repository
+        uses: actions/checkout@v4
+        with:
+          path: device
+
+      - name: Check out UniXNU for the component catalog
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: main
+          path: tools
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Repository structure
+        env:
+          UNIXNU_COMPONENTS: ${{ github.workspace }}/tools/components.toml
+        run: python3 device/scripts/check-repository.py device
+
+      - name: Porting record
+        run: python3 tools/scripts/porting-record.py check --device device
+
+  device-tree:
+    name: Compile the board device tree
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the device repository
+        uses: actions/checkout@v4
+        with:
+          path: device
+
+      - name: Check out the pinned SoC source
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU-sm8550-common
+          ref: 23b2049fcd9e30356161def84231334fb55ecca9
+          path: soc
+
+      - name: Install dtc
+        run: sudo apt-get update && sudo apt-get install -y device-tree-compiler
+
+      - name: Compile dts/nx769j.dts
+        run: |
+          dtc -I dts -O dtb -i soc/dts -o nx769j.dtb device/dts/nx769j.dts
+          echo "device tree bytes: $(wc -c < nx769j.dtb)"
+
+      - name: Inspect the compiled tree
+        run: |
+          dtc -I dtb -O dts nx769j.dtb > nx769j.roundtrip.dts
+          echo "-- root --"
+          grep -E '^\s+(model|compatible) = ' nx769j.roundtrip.dts | head
+          echo "-- CPUs --"
+          grep -E 'compatible = "(arm,cortex|qcom,adreno)' nx769j.roundtrip.dts | sort | uniq -c
+          echo "-- cluster types --"
+          grep -c 'unixnu,cluster-type' nx769j.roundtrip.dts
+          echo "-- memory --"
+          grep -A2 'device_type = "memory"' nx769j.roundtrip.dts
+          echo "-- enabled peripherals --"
+          grep -B6 'status = "okay"' nx769j.roundtrip.dts | grep -E '^\s+[a-z_]+:' | sort -u
+
+      - name: Check the CPU topology
+        run: |
+          test "$(grep -c 'compatible = "arm,cortex-a520"' nx769j.roundtrip.dts)" = "2"
+          test "$(grep -c 'compatible = "arm,cortex-a720"' nx769j.roundtrip.dts)" = "5"
+          test "$(grep -c 'compatible = "arm,cortex-x4"' nx769j.roundtrip.dts)" = "1"
+          test "$(grep -c 'unixnu,cluster-type' nx769j.roundtrip.dts)" = "8"
+
+  resolve:
+    name: Resolve the build tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the device repository
+        uses: actions/checkout@v4
+        with:
+          path: UniXNU-NX769J
+
+      - name: Check out UniXNU
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: main
+          path: UniXNU
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # board.os_profile names a directory under UniXNU/profiles/os/. This port
+      # targets ios-16.5-20F66, which does not exist upstream yet, so the
+      # profile ships in this repository and is installed into the checkout
+      # before resolving. It must be contributed to UniXNU once it is complete.
+      - name: Install the OS profile
+        run: |
+          profile=$(python3 -c "import tomllib;print(tomllib.load(open('UniXNU-NX769J/board.toml','rb'))['board']['os_profile'])")
+          echo "os profile: $profile"
+          if [ -d "UniXNU-NX769J/os-profiles/$profile" ]; then
+            mkdir -p "UniXNU/profiles/os"
+            cp -R "UniXNU-NX769J/os-profiles/$profile" "UniXNU/profiles/os/$profile"
+            echo "installed device-provided profile"
+          else
+            echo "using the profile already in UniXNU"
+          fi
+          test -f "UniXNU/profiles/os/$profile/profile.toml"
+
+      - name: Restore the source cache
+        uses: actions/cache@v4
+        with:
+          path: UniXNU/out/feeds
+          key: feeds-${{ hashFiles('UniXNU-NX769J/feeds.toml', 'UniXNU-NX769J/unixnu.lock', 'UniXNU/components.toml') }}
+          restore-keys: |
+            feeds-
+
+      - name: Fetch the pinned sources
+        working-directory: UniXNU
+        run: |
+          chmod +x unixnu
+          ./unixnu fetch -D ../UniXNU-NX769J
+
+      - name: Select the device configuration
+        working-directory: UniXNU
+        run: ./unixnu defconfig nx769j_defconfig -D ../UniXNU-NX769J
+
+      - name: Assemble the build tree
+        working-directory: UniXNU
+        run: ./unixnu tree -D ../UniXNU-NX769J
+
+      - name: Report the resolved configuration
+        working-directory: UniXNU
+        run: |
+          ./unixnu status --json -D ../UniXNU-NX769J > status.json
+          python3 - <<'PY'
+          import json
+          status = json.load(open('status.json'))
+          print('device      :', status.get('device'), status.get('name'))
+          print('output      :', status.get('output'))
+          print('configured  :', status.get('configured'))
+          print('profiles    :', status.get('profiles'))
+          print('patch order :', status.get('patch_order'))
+          board = status.get('board') or {}
+          print('board       :', {k: board.get(k) for k in ('name', 'soc', 'soc_source', 'os_profile', 'kit')})
+          components = status.get('components') or {}
+          print('components  :', components if isinstance(components, list) else sorted(components))
+          modules = status.get('modules') or {}
+          for name, module in sorted(modules.items()) if isinstance(modules, dict) else []:
+              print(f'module      : {name} -> {module}')
+          PY
+
+      - name: Check the merged kernel configuration
+        run: |
+          config=$(find UniXNU/out -name '.config' | head -1)
+          test -n "$config"
+          echo "merged config: $config"
+          python3 UniXNU-NX769J/scripts/check-merged-config.py "$config" \
+            XNU_ARM_DT_PLATFORM=y \
+            XNU_ARMCPU=y \
+            XNU_SOURCE_CORECRYPTO14=y \
+            XNU_SOURCE_PTHREAD=y \
+            XNU_CRYPTO_BOOTSTRAP=prelinked \
+            XNU_NATIVE_AES=y \
+            XNU_NATIVE_ARCH_TIMER=y \
+            XNU_NATIVE_UFS=y \
+            XNU_NATIVE_VIRTIO_BLOCK=y \
+            XNU_NATIVE_ADRENO=n \
+            XNU_NATIVE_LEGACY_DISPLAY=n \
+            XNU_NATIVE_MOBILE_DISPLAY=n \
+            XNU_ARMVIRT_PLATFORM=n \
+            XNU_SHENG_PMGR=n
+
+      - name: Check the recorded source pins
+        run: |
+          echo "unixnu.lock after fetch:"
+          git -C UniXNU-NX769J --no-pager diff -- unixnu.lock
+          git -C UniXNU-NX769J diff --quiet -- unixnu.lock || {
+            echo '::error::unixnu.lock does not match what ./unixnu fetch resolved. Run ./unixnu fetch and commit the result.'
+            exit 1
+          }
+          echo "unixnu.lock matches the resolved sources"
+
+  partition-safety:
+    name: Non-destructive install path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out UniXNU
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: main
+          path: tools
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The dual-system partition tool carves a `unixnu` partition from the end
+      # of userdata and must leave everything else alone. These are its offline
+      # tests: no phone required, documented for Linux, WSL and macOS.
+      - name: Run the dual-system partition tests
+        working-directory: tools
+        run: python3 scripts/dual_sys/test_dual_sys.py -v
+
+      - name: Check the recovery script parses
+        run: sh -n tools/scripts/dual_sys/twrp.sh
+
+      - name: Build the F2FS shrink helper and run its self-test
+        run: |
+          cc -O2 -Wall -Wextra -Werror \
+            tools/scripts/dual_sys/f2fs-shrink.c -o /tmp/f2fs-shrink-test
+          file /tmp/f2fs-shrink-test
+          /tmp/f2fs-shrink-test self-test
+
+      # The plan bundle carries both GPT copies before and after, so a run that
+      # stops part way can be inspected. Assert the builder emits them.
+      - name: Check the plan bundle layout
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path('tools/scripts/dual_sys')
+          for name in ('partition.py', 'gpt.py', 'f2fs-shrink.c', 'twrp.sh', 'test_dual_sys.py'):
+              assert (root / name).is_file(), f'{name} missing'
+          text = (root / 'partition.py').read_text(encoding='utf-8')
+          for entry in ('gpt-primary.before', 'gpt-backup.before',
+                        'gpt-primary.after', 'gpt-backup.after', 'SHA256SUMS'):
+              assert entry in text, f'plan bundle does not emit {entry}'
+          print('plan bundle emits both GPT copies before and after, plus SHA256SUMS')
+          PY
+
+  # The real gate for this port: XNU 8796 plus the rebased series must build.
+  # On Linux the kernel step uses upstream clang and an open source Mach-O
+  # toolchain instead of Xcode; scripts/linux/setup-toolchain.py installs it.
+  # The toolchain is expensive to build and is cached between runs.
+  kernel:
+    name: Build the kernel
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Check out the device repository
+        uses: actions/checkout@v4
+        with:
+          path: UniXNU-NX769J
+
+      - name: Check out UniXNU
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: main
+          path: UniXNU
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The host dependencies come from apt, not from the toolchain cache, so
+      # they have to be installed even when the cached toolchain is restored.
+      # Without this the cache hit skips setup-toolchain.py and --check then
+      # fails on missing libclang, libbsd and the build tools.
+      - name: Install the host dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config ninja-build cmake flex bison \
+            python3 python3-dev xz-utils bzip2 cpio rsync curl wget \
+            libssl-dev zlib1g-dev libbsd-dev uuid-dev llvm-dev libclang-dev \
+            tcsh unifdef mtools device-tree-compiler
+
+      # Restore and save are separate steps. The kernel job is expected to fail
+      # while this port is being brought up, and actions/cache's combined form
+      # only saves on success, so without an explicit save the entry is never
+      # written and every run rebuilds clang from source.
+      - name: Restore the toolchain cache
+        id: toolchain
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/unixnu-linux
+          key: unixnu-linux-toolchain-${{ hashFiles('UniXNU/scripts/linux/**') }}
+
+      # Install under the runner's home, not /opt. The path is expanded before
+      # sudo, which resets HOME to /root. scripts/unixnu/kernel.py resolves the
+      # toolchain through UNIXNU_TOOLCHAIN, so the same variable drives both the
+      # install and the build.
+      # Run unconditionally. The installer is idempotent: each component is
+      # skipped when it already exists, so on a cache hit it only places the
+      # shims the cache cannot hold. /usr/bin/xcrun is one of them and
+      # scripts/unixnu/kernel.py requires it, so skipping this step on a cache
+      # hit leaves the build failing with "xcrun missing".
+      - name: Install the Linux toolchain
+        working-directory: UniXNU
+        run: |
+          TOOLCHAIN="$HOME/unixnu-linux"
+          sudo env UNIXNU_TOOLCHAIN="$TOOLCHAIN" python3 scripts/linux/setup-toolchain.py "$TOOLCHAIN"
+          sudo chown -R "$(id -u):$(id -g)" "$TOOLCHAIN"
+
+      - name: Save the toolchain cache
+        if: always() && steps.toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/unixnu-linux
+          key: unixnu-linux-toolchain-${{ hashFiles('UniXNU/scripts/linux/**') }}
+
+      - name: Check the toolchain
+        working-directory: UniXNU
+        run: UNIXNU_TOOLCHAIN="$HOME/unixnu-linux" python3 scripts/linux/setup-toolchain.py --check --llvm-config /usr/bin/llvm-config
+
+      - name: Install the OS profile
+        run: |
+          profile=$(python3 -c "import tomllib;print(tomllib.load(open('UniXNU-NX769J/board.toml','rb'))['board']['os_profile'])")
+          test -d "UniXNU-NX769J/os-profiles/$profile"
+          mkdir -p "UniXNU/profiles/os"
+          cp -R "UniXNU-NX769J/os-profiles/$profile" "UniXNU/profiles/os/$profile"
+          echo "installed os profile: $profile"
+
+      - name: Restore the source cache
+        uses: actions/cache@v4
+        with:
+          path: UniXNU/out
+          key: xnu8796-sources-${{ hashFiles('UniXNU-NX769J/feeds.toml', 'UniXNU-NX769J/unixnu.lock', 'UniXNU/components.toml') }}
+          restore-keys: |
+            xnu8796-sources-
+
+      - name: Fetch, configure and assemble
+        working-directory: UniXNU
+        run: |
+          chmod +x unixnu
+          ./unixnu fetch -D ../UniXNU-NX769J
+          ./unixnu defconfig nx769j_defconfig -D ../UniXNU-NX769J
+          ./unixnu tree -D ../UniXNU-NX769J
+
+      - name: Verify the patch order
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess
+          out = subprocess.run(['UniXNU/unixnu', 'status', '--json', '-D', 'UniXNU-NX769J'],
+                               capture_output=True, text=True, check=True).stdout
+          status = json.loads(out)
+          order = status.get('patch_order') or []
+          print(f'resolved patch order: {len(order)} entries')
+          for entry in order:
+              print('  ', pathlib.Path(entry).name)
+          series = [l.strip() for l in
+                    pathlib.Path('UniXNU-NX769J/patches/xnu/series').read_text().splitlines()
+                    if l.strip() and not l.startswith('#')]
+          names = [pathlib.Path(e).name for e in order]
+          assert names == series, f'patch order does not match patches/xnu/series:\n{names}\n{series}'
+          print('patch order matches patches/xnu/series')
+          PY
+
+      # Parallel make interleaves its output so heavily that the diagnostic for
+      # the failing compile is garbled past reading. On failure, repeat serially
+      # so the log names the actual error, then decide.
+      #
+      # CCACHE points XNU's `$(CCACHE) $(CC)` hook at the compile recorder. The
+      # archive builders replay a per-object recipe, {directory, file, arguments},
+      # and nothing on Linux writes those records without it, so the archive stage
+      # stops at the first builder that reads one. The recorder is a transparent
+      # wrapper: it writes the record and then execs the real compiler.
+      #
+      # CI cannot run the prelink half of this step: it needs the iOS 16.5 restore
+      # image, which is not redistributable. What CI does prove is that XNU 8796
+      # with the rebased series compiles and links on Linux with the open source
+      # Mach-O toolchain -- the gate this port was brought up against. The step
+      # asserts exactly that, and treats a stop after the link as the expected
+      # boundary only when the stop is the missing restore image.
+      - name: Build the kernel
+        working-directory: UniXNU
+        env:
+          CCACHE: python3 ${{ github.workspace }}/UniXNU-NX769J/scripts/compile-records.py
+        run: |
+          if UNIXNU_TOOLCHAIN="$HOME/unixnu-linux" ./unixnu build kernel -D ../UniXNU-NX769J 2>&1 | tee build.log; then
+            echo "kernel build passed"
+            exit 0
+          fi
+          echo "::warning::parallel build failed; repeating serially for a readable diagnostic"
+          rm -rf out/nx769j/*/nx769j/logs
+          UNIXNU_TOOLCHAIN="$HOME/unixnu-linux" ./unixnu build kernel -j 1 -D ../UniXNU-NX769J 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+
+          kernel=$(find out -name 'mach.development.bcm2837' -type f | head -1)
+          if [ -z "$kernel" ]; then
+            echo '::error::the kernel did not link'
+            exit 1
+          fi
+          echo "linked kernel: $kernel ($(wc -c < "$kernel") bytes)"
+
+          if [ "$status" -eq 0 ]; then
+            echo "kernel build passed"
+          elif grep -q 'IPSW not found' build.log; then
+            echo '::warning::the kernel built and linked; prelink needs the restore image, which CI cannot hold'
+          else
+            echo '::error::the kernel step failed after the link'
+            exit 1
+          fi
+
+      - name: Report the kernel
+        if: always()
+        run: |
+          find UniXNU/out -maxdepth 6 -name 'kernel.macho*' -o -name '*.unstripped.noctf' 2>/dev/null | head
+          find UniXNU/out -name '*.log' 2>/dev/null | head -20
+          records=$(find UniXNU/out -name '*.o.json' | wc -l)
+          echo "compile records written: $records"
+          test "$records" -gt 0 || echo '::warning::no compile records; the archive builders replay them and will fail'
+
+      # The compile errors land in the build logs rather than on stdout, so ship
+      # them as an artifact instead of leaving a failed run undiagnosable.
+      - name: Upload the build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build-logs
+          path: UniXNU/out/**/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+

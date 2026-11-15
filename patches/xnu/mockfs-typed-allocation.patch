@@ -1,8 +1,8 @@
 diff --git a/bsd/miscfs/mockfs/mockfs_fsnode.c b/bsd/miscfs/mockfs/mockfs_fsnode.c
-index e000126..a470fc8 100644
+index 378b4c3..70b6bcb 100644
 --- a/bsd/miscfs/mockfs/mockfs_fsnode.c
 +++ b/bsd/miscfs/mockfs/mockfs_fsnode.c
-@@ -85,7 +85,7 @@ mockfs_fsnode_create(mount_t mp, uint8_t type, mockfs_fsnode_t * fsnpp)
+@@ -86,7 +86,7 @@ mockfs_fsnode_create(mount_t mp, uint8_t type, mockfs_fsnode_t * fsnpp)
  		goto done;
  	}
  
@@ -11,7 +11,7 @@ index e000126..a470fc8 100644
  	(*fsnpp)->size = new_size;
  	(*fsnpp)->type = type;
  	(*fsnpp)->mnt = mp;
-@@ -154,7 +154,7 @@ mockfs_fsnode_destroy(mockfs_fsnode_t fsnp)
+@@ -161,7 +161,7 @@ mockfs_fsnode_destroy(mockfs_fsnode_t fsnp)
  		}
  	}
  

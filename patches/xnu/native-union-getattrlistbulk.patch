@@ -1,6 +1,8 @@
+diff --git a/bsd/vfs/vfs_attrlist.c b/bsd/vfs/vfs_attrlist.c
+index cbaa0b2..522b05f 100644
 --- a/bsd/vfs/vfs_attrlist.c
 +++ b/bsd/vfs/vfs_attrlist.c
-@@ -4191,6 +4191,9 @@
+@@ -4158,6 +4158,9 @@ getattrlistbulk(proc_t p, struct getattrlistbulk_args *uap, int32_t *retval)
  
  	FV_LOCK(fvdata);
  
@@ -10,11 +12,10 @@
  	/*
  	 * getattrlistbulk(2) maintains its offset in fv_offset. However
  	 * if the offset in the file glob is set (or reset) to 0, the directory
-@@ -4282,6 +4285,52 @@
- 		    &count, &eofflag, ctx);
+@@ -4250,6 +4253,52 @@ getattrlistbulk(proc_t p, struct getattrlistbulk_args *uap, int32_t *retval)
  		ut->uu_flag &= ~UT_KERN_RAGE_VNODES;
  	}
-+
+ 
 +#if CONFIG_UNION_MOUNTS
 +	/* Match getdirentriesattr: consume the upper directory before moving
 +	 * this open descriptor to the corresponding lower union directory.
@@ -60,6 +61,7 @@
 +		}
 +	}
 +#endif
- 
++
  	if (count) {
  		fvdata->fv_offset = uio_offset(auio);
+ 		fp->fp_glob->fg_offset = fvdata->fv_offset;

@@ -1,6 +1,8 @@
+diff --git a/bsd/miscfs/mockfs/mockfs_vfsops.c b/bsd/miscfs/mockfs/mockfs_vfsops.c
+index bea8e6e..20cec71 100644
 --- a/bsd/miscfs/mockfs/mockfs_vfsops.c
 +++ b/bsd/miscfs/mockfs/mockfs_vfsops.c
-@@ -286,6 +286,27 @@
+@@ -227,6 +227,27 @@ mockfs_sync(__unused struct mount *mp, __unused int waitfor, __unused vfs_contex
  	return 0;
  }
  
@@ -28,7 +30,7 @@
  int
  mockfs_init(__unused struct vfsconf * vfsc)
  {
-@@ -296,5 +317,6 @@
+@@ -237,5 +258,6 @@ struct vfsops mockfs_vfsops = {
  	.vfs_unmount = mockfs_unmount,
  	.vfs_root = mockfs_root,
  	.vfs_sync = mockfs_sync,

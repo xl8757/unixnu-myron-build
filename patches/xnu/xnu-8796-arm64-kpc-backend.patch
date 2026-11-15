@@ -1,0 +1,183 @@
+diff --git a/osfmk/arm64/kpc.c b/osfmk/arm64/kpc.c
+new file mode 100644
+index 0000000..eea57b7
+--- /dev/null
++++ b/osfmk/arm64/kpc.c
+@@ -0,0 +1,177 @@
++/*
++ * arm64 kernel performance counter backend.
++ *
++ * The xnu-8796 open source drop lists osfmk/arm64/kpc.c in osfmk/conf/files.arm64
++ * but does not ship the file; only the x86_64 backend is published. These are
++ * the arm64 hooks that osfmk/kern/kpc_common.c, kern_kpc.c and osfmk/arm64/cpu.c
++ * call.
++ *
++ * This board drives no ARM performance monitor unit, so every hook reports that
++ * there are no counter classes, nothing is configured and nothing is running.
++ * The shape of the answers matters: kpc_common.c reads kpc_get_classes() and
++ * the count hooks before it touches any counter, and cpu.c calls kpc_idle on
++ * every idle entry, so these have to be cheap and total rather than partial.
++ */
++#include <kern/kpc.h>
++#include <machine/machine_kpc.h>
++#include <stdint.h>
++
++/* Whether the hardware can capture the program counter. It cannot here. */
++int kpc_pc_capture = 0;
++
++void
++kpc_arch_init(void)
++{
++}
++
++uint32_t
++kpc_get_classes(void)
++{
++	return 0;
++}
++
++int
++kpc_get_pmu_version(void)
++{
++	return 0;
++}
++
++uint32_t
++kpc_fixed_count(void)
++{
++	return 0;
++}
++
++uint32_t
++kpc_configurable_count(void)
++{
++	return 0;
++}
++
++uint32_t
++kpc_fixed_config_count(void)
++{
++	return 0;
++}
++
++uint32_t
++kpc_configurable_config_count(uint64_t pmc_mask)
++{
++	(void)pmc_mask;
++	return 0;
++}
++
++uint64_t
++kpc_fixed_max(void)
++{
++	return 0;
++}
++
++uint64_t
++kpc_configurable_max(void)
++{
++	return 0;
++}
++
++uint32_t
++kpc_rawpmu_config_count(void)
++{
++	return 0;
++}
++
++int
++kpc_get_all_cpus_counters(uint32_t classes, int *curcpu, uint64_t *buf)
++{
++	(void)classes;
++	(void)curcpu;
++	(void)buf;
++	return 0;
++}
++
++int
++kpc_get_fixed_counters(uint64_t *counterv)
++{
++	(void)counterv;
++	return 0;
++}
++
++int
++kpc_get_configurable_counters(uint64_t *counterv, uint64_t pmc_mask)
++{
++	(void)counterv;
++	(void)pmc_mask;
++	return 0;
++}
++
++int
++kpc_get_fixed_config(kpc_config_t *configv)
++{
++	(void)configv;
++	return 0;
++}
++
++int
++kpc_get_configurable_config(kpc_config_t *configv, uint64_t pmc_mask)
++{
++	(void)configv;
++	(void)pmc_mask;
++	return 0;
++}
++
++int
++kpc_get_rawpmu_config(kpc_config_t *configv)
++{
++	(void)configv;
++	return 0;
++}
++
++int
++kpc_set_config_arch(struct kpc_config_remote *mp_config)
++{
++	(void)mp_config;
++	return 0;
++}
++
++int
++kpc_set_period_arch(struct kpc_config_remote *mp_config)
++{
++	(void)mp_config;
++	return 0;
++}
++
++int
++kpc_set_running_arch(struct kpc_running_remote *mp_config)
++{
++	(void)mp_config;
++	return 0;
++}
++
++int
++kpc_set_sw_inc(uint32_t mask)
++{
++	(void)mask;
++	return 0;
++}
++
++boolean_t
++kpc_is_running_fixed(void)
++{
++	return FALSE;
++}
++
++boolean_t
++kpc_is_running_configurable(uint64_t pmc_mask)
++{
++	(void)pmc_mask;
++	return FALSE;
++}
++
++void
++kpc_idle(void)
++{
++}
++
++void
++kpc_idle_exit(void)
++{
++}

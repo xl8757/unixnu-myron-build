@@ -1,6 +1,8 @@
+diff --git a/osfmk/kern/startup.c b/osfmk/kern/startup.c
+index bec97fb..b790d0d 100644
 --- a/osfmk/kern/startup.c
 +++ b/osfmk/kern/startup.c
-@@ -751,7 +751,7 @@
+@@ -734,7 +734,7 @@ kernel_bootstrap_thread(void)
  	csm_initialize_provisioning_profiles();
  #endif
  

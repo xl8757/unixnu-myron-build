@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/mach_loader.c b/bsd/kern/mach_loader.c
-index 4435c16..665536f 100644
+index 1756185..fc53e0e 100644
 --- a/bsd/kern/mach_loader.c
 +++ b/bsd/kern/mach_loader.c
-@@ -511,8 +511,12 @@ load_machfile(
+@@ -509,8 +509,12 @@ load_machfile(
  
  #if defined(__arm64__)
  	if (result->is_64bit_addr) {
@@ -16,10 +16,10 @@ index 4435c16..665536f 100644
  		vm_map_set_page_shift(map, page_shift_user32);
  	}
 diff --git a/osfmk/arm/arm_init.c b/osfmk/arm/arm_init.c
-index 8fe43b6..a81d6c4 100644
+index 1f0543c..85906cd 100644
 --- a/osfmk/arm/arm_init.c
 +++ b/osfmk/arm/arm_init.c
-@@ -399,6 +399,10 @@ arm_init(
+@@ -391,6 +391,10 @@ arm_init(
  
  
  	{
@@ -30,7 +30,7 @@ index 8fe43b6..a81d6c4 100644
  		/*
  		 * Select the advertised kernel page size.
  		 */
-@@ -417,8 +421,14 @@ arm_init(
+@@ -409,8 +413,14 @@ arm_init(
  			PAGE_SHIFT_CONST = ARM_PGSHIFT;
  		}
  
@@ -46,10 +46,10 @@ index 8fe43b6..a81d6c4 100644
  		if (PE_parse_boot_argn("cpus_defeatures", &cpus_defeatures, sizeof(cpus_defeatures))) {
  			if ((cpus_defeatures & 0xF) != 0) {
 diff --git a/osfmk/arm/commpage/commpage.c b/osfmk/arm/commpage/commpage.c
-index 896a7c8..315ecea 100644
+index ee9f8de..f543fca 100644
 --- a/osfmk/arm/commpage/commpage.c
 +++ b/osfmk/arm/commpage/commpage.c
-@@ -185,8 +185,13 @@ commpage_populate(void)
+@@ -175,8 +175,13 @@ commpage_populate(void)
  #if __arm64__
  	*((uint8_t*)(_COMM_PAGE_USER_PAGE_SHIFT_32_LEGACY + _COMM_PAGE_RW_OFFSET)) = (uint8_t) page_shift_user32;
  	*((uint8_t*)(_COMM_PAGE_USER_PAGE_SHIFT_32 + _COMM_PAGE_RO_OFFSET)) = (uint8_t) page_shift_user32;
@@ -64,10 +64,10 @@ index 896a7c8..315ecea 100644
  
  	commpage_update_timebase();
 diff --git a/osfmk/vm/vm_shared_region.c b/osfmk/vm/vm_shared_region.c
-index 0bb45c5..1ab7232 100644
+index db1d613..a45ef94 100644
 --- a/osfmk/vm/vm_shared_region.c
 +++ b/osfmk/vm/vm_shared_region.c
-@@ -778,11 +778,15 @@ vm_shared_region_create(
+@@ -774,11 +774,15 @@ vm_shared_region_create(
  			sub_map = vm_map_create_options(pmap_nested, 0,
  			    (vm_map_offset_t)size, VM_MAP_CREATE_PAGEABLE);
  

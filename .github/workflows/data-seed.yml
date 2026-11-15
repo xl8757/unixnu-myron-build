@@ -1,0 +1,220 @@
+name: Data seed
+
+# The writable Data volume's seed for the payload (unixnu build payload
+# --data-ramdisk), built on a hosted macOS runner because every step needs
+# hdiutil and diskutil apfs: scripts/build-data-seed.py makes an APFS volume at
+# the requested size holding the iOS 16.5 OS volume's initial /private/var, and
+# packs it with DarwinBoot's DBRDISK1 writer.
+#
+# UniXNU's own prepare-owner-data-fixture.py and seed-data-grow.py cannot do
+# this port: the first refuses any OS mount whose sbin/launchd does not hash to
+# the iPadOS 17.7.11 image it is developed against, and the second grows a
+# packed seed this port does not already have. build-data-seed.py does the whole
+# sequence for iOS 16.5 and reports the new volume UUID.
+#
+# The seed is rebuilt from scratch on every run, so the Data volume UUID changes
+# with it. The report records the UUID to follow; the kernel takes whatever
+# volume is on the seed window rather than matching a configured one.
+#
+# The restore image is not redistributable, so it is downloaded from Apple's
+# update CDN at run time and deleted again; only the seed is uploaded. If the
+# ARTIFACT_PASSPHRASE secret is set the seed is uploaded encrypted:
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+#     -in data-seed.tar.gz.enc -pass file:KEYFILE | tar xz
+
+on:
+  # Also runs when the seed tooling changes, so pushing an update to it produces
+  # a seed without needing a token to trigger workflow_dispatch. Every other
+  # push leaves it alone: the job downloads a 6 GiB restore image.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/data-seed.yml'
+      - 'scripts/build-data-seed.py'
+  workflow_dispatch:
+    inputs:
+      size_mib:
+        description: Data container size in MiB (256 is a RAM seed; the kernel accepts up to 1 TiB)
+        required: true
+        default: "256"
+      ipsw_url:
+        description: Where to fetch the iOS 16.5 restore image
+        required: true
+        default: https://updates.cdn-apple.com/2023SpringFCS/fullrestores/032-85130/6AB0D10A-8AF9-4F6C-8CF5-A1B315CABE88/iPhone10,3,iPhone10,6_16.5_20F66_Restore.ipsw
+      unixnu_ref:
+        description: UniXNU ref (for drivers/DarwinBoot/Test/packed_ramdisk.py)
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+env:
+  # The whole restore image and the OS member, both pinned. The member pin is
+  # also in os-profiles/ios-16.5-20F66/profile.toml [ipsw.sha256] and the build
+  # checks it, so a mismatch here stops before anything is mounted.
+  IPSW_SHA256: c1091c401f67e3aa7cdfeb2cc19e6c79be3c957aae4e097a019e9ccea07d52f2
+  OS_MEMBER: 096-04088-077.dmg
+  # A push has no inputs, so each falls back to the workflow_dispatch default.
+  SIZE_MIB: ${{ inputs.size_mib || '256' }}
+  IPSW_URL: ${{ inputs.ipsw_url || 'https://updates.cdn-apple.com/2023SpringFCS/fullrestores/032-85130/6AB0D10A-8AF9-4F6C-8CF5-A1B315CABE88/iPhone10,3,iPhone10,6_16.5_20F66_Restore.ipsw' }}
+  UNIXNU_REF: ${{ inputs.unixnu_ref || 'main' }}
+
+jobs:
+  seed:
+    runs-on: macos-26
+    timeout-minutes: 150
+    steps:
+      - name: Check out this device repository
+        uses: actions/checkout@v4
+        with:
+          path: device
+          persist-credentials: false
+
+      - name: Check out UniXNU
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: ${{ env.UNIXNU_REF }}
+          path: unixnu
+          persist-credentials: false
+
+      # Only DarwinBoot is needed, and it is a submodule rather than part of the
+      # tree. Its Test/packed_ramdisk.py is the DBRDISK1 writer the seed packs
+      # with; the rest of the submodules are not worth fetching.
+      - name: Fetch the DarwinBoot submodule
+        run: |
+          set -euo pipefail
+          git -C unixnu submodule update --init --depth 1 drivers/DarwinBoot
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Fetch the iOS 16.5 restore image
+        run: |
+          set -euo pipefail
+          trap 'echo "::error title=Fetch the restore image::$BASH_COMMAND"' ERR
+          {
+            echo '## Data seed'
+            echo '### Runner disk'
+            echo '```'
+            df -h "$RUNNER_TEMP"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/ipsw"
+          curl -fSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/ipsw/restore.ipsw" "$IPSW_URL"
+          echo "$IPSW_SHA256  $RUNNER_TEMP/ipsw/restore.ipsw" | shasum -a 256 -c -
+
+      - name: Extract the OS volume
+        run: |
+          set -euo pipefail
+          trap 'echo "::error title=Extract the OS volume::$BASH_COMMAND"' ERR
+          python3 - <<'PY'
+          import hashlib, os, zipfile
+          from pathlib import Path
+          ipsw = Path(os.environ['RUNNER_TEMP']) / 'ipsw/restore.ipsw'
+          out = Path(os.environ['RUNNER_TEMP']) / 'os'
+          out.mkdir(parents=True, exist_ok=True)
+          member = os.environ['OS_MEMBER']
+          # The member pin is the one the OS profile records; it is read from the
+          # profile rather than repeated, so the two cannot drift.
+          import tomllib
+          pin = tomllib.loads(Path('device/os-profiles/ios-16.5-20F66/profile.toml')
+                              .read_text(encoding='utf-8'))['ipsw']['sha256'][member]
+          with zipfile.ZipFile(ipsw) as archive, archive.open(member) as source:
+              digest = hashlib.sha256()
+              with (out / member).open('wb') as target:
+                  while chunk := source.read(8 * 1024 * 1024):
+                      target.write(chunk)
+                      digest.update(chunk)
+          if digest.hexdigest() != pin:
+              raise SystemExit(f'{member} hashes to {digest.hexdigest()}, the profile pins {pin}')
+          print(f'{member} {digest.hexdigest()} extracted')
+          PY
+          rm -f "$RUNNER_TEMP/ipsw/restore.ipsw"
+          df -h "$RUNNER_TEMP" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Mount the OS volume read-only
+        run: |
+          set -euo pipefail
+          trap 'echo "::error title=Mount the OS volume::$BASH_COMMAND"' ERR
+          mkdir -p "$RUNNER_TEMP/os-mount"
+          hdiutil attach -readonly -nobrowse -owners off \
+            -mountpoint "$RUNNER_TEMP/os-mount" "$RUNNER_TEMP/os/$OS_MEMBER"
+
+      - name: Build the seed
+        id: seed
+        run: |
+          set -euo pipefail
+          trap 'echo "::error title=Build the seed::$BASH_COMMAND"' ERR
+          # Run it out of the pipeline and echo the last line as an annotation on
+          # failure: a traceback on stderr is not an annotation, and this is the
+          # only part of a failed run readable without repository access.
+          # The redirect below needs this directory to exist; without it bash
+          # fails the redirection and the script never runs.
+          mkdir -p "$RUNNER_TEMP/out"
+          set +e
+          python3 device/scripts/build-data-seed.py \
+            --os-mount "$RUNNER_TEMP/os-mount" \
+            --output "$RUNNER_TEMP/out/nx769j-data.dbr" \
+            --size-mib "$SIZE_MIB" \
+            --unixnu unixnu \
+            --work "$RUNNER_TEMP/seed-work" > "$RUNNER_TEMP/out/build-data-seed.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/out/build-data-seed.log"
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=build-data-seed::$(tail -n 1 "$RUNNER_TEMP/out/build-data-seed.log")"
+            exit "$status"
+          fi
+          uuid=$(python3 -c "import json,os;print(json.load(open(os.environ['RUNNER_TEMP']+'/out/nx769j-data.dbr.json'))['volume_uuid'])")
+          {
+            echo "device $(git -C device rev-parse HEAD)"
+            echo "unixnu $(git -C unixnu rev-parse HEAD)"
+            echo "size_mib $SIZE_MIB"
+            echo "volume_uuid $uuid"
+            echo "ipsw $IPSW_SHA256"
+            echo "os_member $(python3 -c "import hashlib,os;print(hashlib.sha256(open(os.environ['RUNNER_TEMP']+'/os/'+os.environ['OS_MEMBER'],'rb').read()).hexdigest())")"
+            shasum -a 256 "$RUNNER_TEMP/out/nx769j-data.dbr"
+          } | tee "$RUNNER_TEMP/out/inputs.txt"
+          {
+            echo '### Seed'
+            echo '```'
+            cat "$RUNNER_TEMP/out/inputs.txt"
+            echo '```'
+            echo '```json'
+            cat "$RUNNER_TEMP/out/nx769j-data.dbr.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Data volume UUID::$uuid"
+
+      - name: Unmount the OS volume
+        if: always()
+        run: hdiutil detach "$RUNNER_TEMP/os-mount" -force || true
+
+      - name: Encrypt
+        id: encrypt
+        env:
+          ARTIFACT_PASSPHRASE: ${{ secrets.ARTIFACT_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          trap 'echo "::error title=Encrypt::$BASH_COMMAND"' ERR
+          if [ -n "$ARTIFACT_PASSPHRASE" ]; then
+            tar -C "$RUNNER_TEMP/out" -czf - . \
+              | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:ARTIFACT_PASSPHRASE \
+                  -out "$RUNNER_TEMP/data-seed.tar.gz.enc"
+            echo "encrypted=true" >> "$GITHUB_OUTPUT"
+          else
+            tar -C "$RUNNER_TEMP/out" -czf "$RUNNER_TEMP/data-seed.tar.gz" .
+            echo "::warning::No ARTIFACT_PASSPHRASE secret, so the seed is uploaded unencrypted. It holds files from the iOS restore image."
+            echo "encrypted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: nx769j-data-seed${{ steps.encrypt.outputs.encrypted == 'true' && '-encrypted' || '' }}
+          path: ${{ runner.temp }}/data-seed.tar.gz*
+          if-no-files-found: error
+          retention-days: 7

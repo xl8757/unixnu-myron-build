@@ -1,5 +1,5 @@
 diff --git a/osfmk/arm/pmap/pmap.c b/osfmk/arm/pmap/pmap.c
-index 7db00b6..9f9d7bf 100644
+index bbd648e..45ce968 100644
 --- a/osfmk/arm/pmap/pmap.c
 +++ b/osfmk/arm/pmap/pmap.c
 @@ -84,8 +84,12 @@
@@ -15,7 +15,7 @@ index 7db00b6..9f9d7bf 100644
  
  #if defined(KERNEL_INTEGRITY_KTRR) || defined(KERNEL_INTEGRITY_CTRR)
  #include <arm64/amcc_rorgn.h>
-@@ -883,6 +887,8 @@ PMAP_SUPPORT_PROTOTYPES(
+@@ -859,6 +863,8 @@ PMAP_SUPPORT_PROTOTYPES(
  	vm_prot_t allow_mode,
  	int options), ARM_FORCE_FAST_FAULT_INDEX);
  
@@ -24,7 +24,7 @@ index 7db00b6..9f9d7bf 100644
  MARK_AS_PMAP_TEXT static boolean_t
  arm_force_fast_fault_with_flush_range(
  	ppnum_t ppnum,
-@@ -2267,13 +2273,17 @@ pmap_bootstrap(
+@@ -2211,13 +2217,17 @@ pmap_bootstrap(
  	/**
  	 * Bootstrap any necessary UAT data structures and values needed from the device tree.
  	 */
@@ -42,7 +42,7 @@ index 7db00b6..9f9d7bf 100644
  
  	/**
  	 * Don't make any assumptions about the alignment of avail_start before this
-@@ -4809,13 +4819,13 @@ pmap_page_protect_options_with_flush_range(
+@@ -4699,13 +4709,13 @@ pmap_page_protect_options_with_flush_range(
  		if (pvh_ptep_is_iommu(pte_p)) {
  #if XNU_MONITOR
  			if (__improbable(pvh_flags & PVH_FLAG_LOCKDOWN_MASK)) {
@@ -60,7 +60,7 @@ index 7db00b6..9f9d7bf 100644
  			}
  			goto protect_skip_pve_pass1;
  		}
-@@ -12026,6 +12036,7 @@ pmap_unpin_kernel_pages(vm_offset_t kva __unused, size_t nbytes __unused)
+@@ -11645,6 +11655,7 @@ pmap_unpin_kernel_pages(vm_offset_t kva __unused, size_t nbytes __unused)
  #endif /* !XNU_MONITOR */
  
  
@@ -68,7 +68,7 @@ index 7db00b6..9f9d7bf 100644
  MARK_AS_PMAP_TEXT static inline void
  pmap_cs_lockdown_pages(vm_address_t kva, vm_size_t size, bool ppl_writable)
  {
-@@ -12046,6 +12057,8 @@ pmap_cs_unlockdown_pages(vm_address_t kva, vm_size_t size, bool ppl_writable)
+@@ -11665,6 +11676,8 @@ pmap_cs_unlockdown_pages(vm_address_t kva, vm_size_t size, bool ppl_writable)
  #endif
  }
  

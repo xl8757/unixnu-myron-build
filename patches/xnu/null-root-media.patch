@@ -1,8 +1,8 @@
 diff --git a/iokit/Kernel/IOService.cpp b/iokit/Kernel/IOService.cpp
-index 4903e7d..c22edff 100644
+index 6d7dd7e..f1a3fb0 100644
 --- a/iokit/Kernel/IOService.cpp
 +++ b/iokit/Kernel/IOService.cpp
-@@ -5257,14 +5257,16 @@ IOService::setRootMedia(IOService * root)
+@@ -5153,14 +5153,16 @@ IOService::setRootMedia(IOService * root)
  	const OSMetaClass * ioblockstoragedriverClass;
  	bool unhide;
  

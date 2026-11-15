@@ -1,6 +1,8 @@
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+index 40e0c13..a5df793 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7400,6 +7400,17 @@
+@@ -7159,6 +7159,17 @@ load_init_program(proc_t p)
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
  

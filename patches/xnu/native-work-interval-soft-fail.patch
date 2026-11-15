@@ -1,8 +1,8 @@
 diff --git a/osfmk/kern/work_interval.c b/osfmk/kern/work_interval.c
-index 96e985d..46ef2b3 100644
+index f2b9ce2..95416ab 100644
 --- a/osfmk/kern/work_interval.c
 +++ b/osfmk/kern/work_interval.c
-@@ -1115,7 +1115,7 @@ kern_work_interval_create(thread_t thread,
+@@ -1050,7 +1050,7 @@ kern_work_interval_create(thread_t thread,
  			return KERN_FAILURE;
  		}
  		if (!task_is_app(creating_task)) {
@@ -11,7 +11,7 @@ index 96e985d..46ef2b3 100644
  			/*
  			 * Soft-fail the case of a non-app pretending to be an
  			 * app, by allowing it to press the buttons, but they're
-@@ -1131,7 +1131,8 @@ kern_work_interval_create(thread_t thread,
+@@ -1066,7 +1066,8 @@ kern_work_interval_create(thread_t thread,
  #endif /* XNU_TARGET_OS_OSX */
  		}
  		if (task_set_ca_client_wi(creating_task, true) == false) {

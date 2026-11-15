@@ -1,0 +1,33 @@
+diff --git a/osfmk/kern/kalloc.h b/osfmk/kern/kalloc.h
+index dfa89c7..334db0a 100644
+--- a/osfmk/kern/kalloc.h
++++ b/osfmk/kern/kalloc.h
+@@ -821,11 +821,26 @@ __options_decl(kt_granule_t, uint32_t, {
+  * @param ptr           the pointer whose type needs to be checked.
+  * @param type          the type which the pointer will be checked against.
+  */
++#ifdef __cplusplus
++/*
++ * Dereferencing a void pointer is ill formed in C++, so the pointee type is
++ * derived from the pointer type instead. void * still resolves to void and
++ * stays a wildcard, which is what this macro documents.
++ */
++extern "C++" {
++template <typename P> struct kalloc_pointee_type { typedef void type; };
++template <typename T> struct kalloc_pointee_type<T *> { typedef T type; };
++}
++#define KALLOC_TYPE_POINTEE(ptr) typename kalloc_pointee_type<__typeof__(ptr)>::type
++#else
++#define KALLOC_TYPE_POINTEE(ptr) __typeof__(*(ptr))
++#endif
++
+ #define KALLOC_TYPE_IS_COMPATIBLE_PTR(ptr, type)                   \
+ 	_Pragma("clang diagnostic push")                               \
+ 	_Pragma("clang diagnostic ignored \"-Wvoid-ptr-dereference\"") \
+-	(__builtin_xnu_types_compatible(__typeof__(*(ptr)), type) ||   \
+-	    __builtin_xnu_types_compatible(__typeof__(*(ptr)), void))  \
++	(__builtin_xnu_types_compatible(KALLOC_TYPE_POINTEE(ptr), type) ||   \
++	    __builtin_xnu_types_compatible(KALLOC_TYPE_POINTEE(ptr), void))  \
+ 	_Pragma("clang diagnostic pop")
+ 
+ #define KALLOC_TYPE_ASSERT_COMPATIBLE_POINTER(ptr, type) \

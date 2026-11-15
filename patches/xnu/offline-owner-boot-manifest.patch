@@ -1,6 +1,8 @@
+diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
+index 5219fb0..386640f 100644
 --- a/iokit/bsddev/IOKitBSDInit.cpp
 +++ b/iokit/bsddev/IOKitBSDInit.cpp
-@@ -566,6 +566,69 @@
+@@ -553,6 +553,69 @@ IOGetBootManifestHash(char *hash_data, size_t *hash_data_size)
  	return result;
  }
  

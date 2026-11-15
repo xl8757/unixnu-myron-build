@@ -1,0 +1,30 @@
+diff --git a/iokit/DriverKit/IORPC.h b/iokit/DriverKit/IORPC.h
+index 3ded78c..6fc7e4d 100644
+--- a/iokit/DriverKit/IORPC.h
++++ b/iokit/DriverKit/IORPC.h
+@@ -224,6 +224,10 @@ struct IORPC {
+ 	IORPCMessageMach * reply;
+ 	uint32_t           sendSize;
+ 	uint32_t           replySize;
++	/* The interface generator emits rpc.kernelContent for the kernel-resident
++	 * message. This XNU dispatches from message only and ignores the field, so
++	 * it is present to match what iig produces. */
++	IORPCMessage     * kernelContent;
+ };
+ typedef struct IORPC IORPC;
+ 
+diff --git a/iokit/IOKit/IORPC.h b/iokit/IOKit/IORPC.h
+index 3ded78c..6fc7e4d 100644
+--- a/iokit/IOKit/IORPC.h
++++ b/iokit/IOKit/IORPC.h
+@@ -224,6 +224,10 @@ struct IORPC {
+ 	IORPCMessageMach * reply;
+ 	uint32_t           sendSize;
+ 	uint32_t           replySize;
++	/* The interface generator emits rpc.kernelContent for the kernel-resident
++	 * message. This XNU dispatches from message only and ignores the field, so
++	 * it is present to match what iig produces. */
++	IORPCMessage     * kernelContent;
+ };
+ typedef struct IORPC IORPC;
+ 

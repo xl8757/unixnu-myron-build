@@ -1,0 +1,17 @@
+diff --git a/kern/kern_support.c b/kern/kern_support.c
+index bdb04ab..d24d820 100644
+--- a/kern/kern_support.c
++++ b/kern/kern_support.c
+@@ -667,10 +667,8 @@ _bsdthread_register(struct proc *p,
+ 	*retval = PTHREAD_FEATURE_SUPPORTED;
+ 
+ #if _PTHREAD_CONFIG_JIT_WRITE_PROTECT
+-	if (pthread_kern->proc_get_jit_entitled(p)) {
+-		*retval |= PTHREAD_FEATURE_JIT_ENTITLED;
+-	}
+-
++	/* xnu-8796 has no proc_get_jit_entitled in pthread_callbacks_s: the
++	 * JIT-entitlement bit is a later XNU API. Do not advertise it here. */
+ 	bool late = false;
+ 	if (pthread_kern->proc_get_pthread_jit_allowlist2(p, &late)) {
+ 		*retval |= PTHREAD_FEATURE_JIT_ALLOWLIST;

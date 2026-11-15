@@ -1,0 +1,14 @@
+# Copy to local.toml (ignored by Git) to point whole categories at local directories. Each
+# subdirectory is one module. The command line (--local, --local-drivers, ...) takes precedence.
+[local]
+drivers = "~/Code/dev/drivers"
+kits = "~/Code/dev/kits"
+
+# A source override pins a whole source to a local checkout instead. Relative
+# local paths resolve from this file; `~` and environment variables expand
+# before path resolution. Local sources are never recorded in unixnu.lock.
+#
+# [[source]]
+# kind = "soc"
+# name = "sm8550"
+# local = "../UniXNU-sm8550-common"

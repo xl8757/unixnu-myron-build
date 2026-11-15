@@ -1,17 +1,8 @@
+# Normalize line endings. The device tree, defconfig, shell scripts and TOML are
+# consumed by Linux build hosts and by dtc, which reject CRLF line endings.
 * text=auto eol=lf
-*.sh text eol=lf
-*.py text eol=lf
-*.c text eol=lf
-*.cpp text eol=lf
-*.h text eol=lf
-*.mm text eol=lf
-*.rs text eol=lf
-*.json text eol=lf
-*.patch text eol=lf -whitespace
+
 *.png binary
 *.jpg binary
-*.efi binary
 *.dtb binary
 *.bin binary
-*.a binary
-*.o binary

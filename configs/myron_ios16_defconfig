@@ -1,0 +1,76 @@
+# myron / iOS 16.7.16 kernel configuration (skeleton).
+# PENDING: re-qualify against the 20H392 kernelcache before building.
+# CONFIG_XNU_<NAME> becomes XNU_<NAME> for the kernel build script: y and n are 1
+# and 0, a quoted string or a number is passed through, {tree} is the build tree.
+#
+# Configuration fragments apply first in this order:
+#   arch:configs/common.config  soc:configs/sm8550.config  os:configs/ipados.config
+# and this file is applied last, so a value set here replaces the inherited one.
+
+# Supplied by arch:configs/common.config and repeated for readability:
+#   CONFIG_XNU_BUILD_ARCHIVES=y
+#   CONFIG_XNU_SOURCE_CORECRYPTO14=y
+#   CONFIG_XNU_SOURCE_PTHREAD=y
+#   CONFIG_XNU_ARM_DT_PLATFORM=y
+#   CONFIG_XNU_ARMCPU=y
+#   CONFIG_XNU_NATIVE_AES=y
+#   CONFIG_XNU_NATIVE_ARCH_TIMER=y
+#   CONFIG_XNU_NATIVE_PAN=y
+
+# The kernel link consumes the prelinked native drivers and the original kexts.
+CONFIG_XNU_CRYPTO_BOOTSTRAP="prelinked"
+
+# DT handoff and diagnostics.
+CONFIG_XNU_DT_PANIC_REGION=y
+CONFIG_XNU_TRUST_CACHE_RUNTIME=y
+CONFIG_XNU_NATIVE_CS_HASH_CACHE=y
+
+# Storage. ShengUfs drives the SM8650 UFS controller and VirtioMmioBlock
+# publishes its request transport; VerifiedRoot authenticates block reads.
+CONFIG_XNU_NATIVE_UFS=y
+CONFIG_XNU_NATIVE_VIRTIO_BLOCK=y
+
+# Two archives the link needs but that no config flag pulls in on its own.
+# ShengUfs subclasses IOBlockStorageDevice, which lives in the prelinked
+# IOStorageFamily kext: compiling the class in as well registers it twice and
+# panics, so libStorageBindings.a resolves the inherited slots to the original
+# prelinked code with absolute symbols. libVerifiedRoot.a carries the real
+# VerifiedRoot crypto together with this board's policy table, which is empty
+# until a signed bundle exists.
+#
+# [kernel] archives builds both before the link; this puts them on the link line
+# so ld64 pulls the members in against the driver's unresolved references.
+CONFIG_XNU_EXTRA_LD_ARCHIVES="-Wl,-force_load,{tree}/build/io-storage-family/libStorageBindings.a -Wl,-force_load,{tree}/build/verified-root/libVerifiedRoot.a"
+
+# Display. GopFramebuffer presents through the UEFI GOP framebuffer that the
+# uefi-nx769j firmware publishes, but its kernel-side provider is a late
+# archive that no builder in this tree produces yet, and the symbols it would
+# define (native_legacy_display_probe, native_legacy_display_provider_probe)
+# are referenced from bsd_init and IOUserClient behind these very flags. Both
+# stay off until the archive exists, so the kernel links headless. Turn them on
+# together with the archive.
+# CONFIG_XNU_NATIVE_LEGACY_DISPLAY is not set
+# CONFIG_XNU_NATIVE_MOBILE_DISPLAY is not set
+
+# soc:configs/sm8550.config sets CONFIG_XNU_NATIVE_ADRENO=y. The SM8550 GPU
+# stack targets Adreno 740; NX769J has Adreno 750 (qcom,adreno-43051401 with
+# qcom,adreno-gmu-750.1) and has no qualified driver, so the native GPU path is
+# off until one is selected.
+CONFIG_XNU_NATIVE_ADRENO=n
+
+# Not a QEMU board. The ArmVirtPlatform expert would claim the platform.
+# CONFIG_XNU_ARMVIRT_PLATFORM is not set
+
+# RAM block storage is not used on this board; the root volume is the UFS OS
+# window and persistence is the UFS Data region.
+# CONFIG_XNU_NATIVE_RAM_BLOCK is not set
+
+# No board PMGR driver is selected yet. The SM8650 has no Apple PMGR block, and
+# the caihong SM8650 port reports "AMFI: No PMGR?" panics from the AMFI early
+# security init path on this SoC family.
+# CONFIG_XNU_SHENG_PMGR is not set
+
+# Owner chain knobs stay off until the OS window's APFS volume UUID and the
+# SystemOS cryptex volume UUID are read from the installed images. Once known,
+# set CONFIG_XNU_OWNER_DATA_VOLUME_UUID and CONFIG_XNU_OWNER_CACHE_VOLUME_UUID
+# and enable the matching CONFIG_XNU_OWNER_* paths.

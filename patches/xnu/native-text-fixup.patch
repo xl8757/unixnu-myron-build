@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/ubc_subr.c b/bsd/kern/ubc_subr.c
-index 22c5bf1..05c6504 100644
+index 5904bc0..5cbeb4e 100644
 --- a/bsd/kern/ubc_subr.c
 +++ b/bsd/kern/ubc_subr.c
-@@ -6043,6 +6043,172 @@ cs_validate_hash(
+@@ -5991,6 +5991,172 @@ cs_validate_hash(
  	return validated;
  }
  
@@ -176,7 +176,7 @@ index 22c5bf1..05c6504 100644
  cs_validate_range(
  	struct vnode    *vp,
 diff --git a/osfmk/vm/vm_fault.c b/osfmk/vm/vm_fault.c
-index 5184390..5bf9f03 100644
+index 42e4536..e785894 100644
 --- a/osfmk/vm/vm_fault.c
 +++ b/osfmk/vm/vm_fault.c
 @@ -100,6 +100,9 @@
@@ -189,7 +189,7 @@ index 5184390..5bf9f03 100644
  
  #include <sys/codesign.h>
  #include <sys/code_signing.h>
-@@ -7797,6 +7800,14 @@ vm_page_validate_cs_mapped_slow(
+@@ -7560,6 +7563,14 @@ vm_page_validate_cs_mapped_slow(
  	page->vmp_cs_tainted |= tainted;
  	page->vmp_cs_nx |= nx;
  
@@ -205,10 +205,10 @@ index 5184390..5bf9f03 100644
  	if (page->vmp_cs_validated == VMP_CS_ALL_TRUE &&
  	    page->vmp_cs_tainted == VMP_CS_ALL_FALSE) {
 diff --git a/osfmk/vm/vm_protos.h b/osfmk/vm/vm_protos.h
-index 02188d6..b04640d 100644
+index df30cfb..4c91b8e 100644
 --- a/osfmk/vm/vm_protos.h
 +++ b/osfmk/vm/vm_protos.h
-@@ -539,6 +539,7 @@ extern boolean_t cs_validate_range(struct vnode *vp,
+@@ -524,6 +524,7 @@ extern boolean_t cs_validate_range(struct vnode *vp,
      const void *data,
      vm_size_t size,
      unsigned *result);

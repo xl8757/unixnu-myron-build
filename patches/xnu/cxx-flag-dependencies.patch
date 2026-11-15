@@ -1,8 +1,8 @@
 diff --git a/bsd/conf/Makefile.template b/bsd/conf/Makefile.template
-index 1e2c5d1..882c1c9 100644
+index 4b83160..1336382 100644
 --- a/bsd/conf/Makefile.template
 +++ b/bsd/conf/Makefile.template
-@@ -544,7 +544,7 @@ $(COBJS): .CFLAGS
+@@ -543,7 +543,7 @@ $(COBJS): .CFLAGS
  	$(_v)$(REPLACECONTENTS) $@ $(KCC) $(CFLAGS) $(INCFLAGS)
  $(CXXOBJS): .CXXFLAGS
  .CXXFLAGS: ALWAYS
@@ -12,10 +12,10 @@ index 1e2c5d1..882c1c9 100644
  .SFLAGS: ALWAYS
  	$(_v)$(REPLACECONTENTS) $@ $(S_KCC) $(SFLAGS) $(INCFLAGS)
 diff --git a/iokit/conf/Makefile.template b/iokit/conf/Makefile.template
-index 2b3b974..c300580 100644
+index 7613d9b..9024544 100644
 --- a/iokit/conf/Makefile.template
 +++ b/iokit/conf/Makefile.template
-@@ -209,7 +209,7 @@ $(COBJS): .CFLAGS
+@@ -208,7 +208,7 @@ $(COBJS): .CFLAGS
  	$(_v)$(REPLACECONTENTS) $@ $(KCC) $(CFLAGS) $(INCFLAGS)
  $(CXXOBJS): .CXXFLAGS
  .CXXFLAGS: ALWAYS
@@ -51,10 +51,10 @@ index b20de6a..5a21d5d 100644
  .SFLAGS: ALWAYS
  	$(_v)$(REPLACECONTENTS) $@ $(S_KCC) $(SFLAGS) $(INCFLAGS)
 diff --git a/osfmk/conf/Makefile.template b/osfmk/conf/Makefile.template
-index 5126a45..4d7c60b 100644
+index ddc2616..a5a4c59 100644
 --- a/osfmk/conf/Makefile.template
 +++ b/osfmk/conf/Makefile.template
-@@ -389,7 +389,7 @@ $(COBJS): .CFLAGS
+@@ -379,7 +379,7 @@ $(COBJS): .CFLAGS
  	$(_v)$(REPLACECONTENTS) $@ $(KCC) $(CFLAGS) $(INCFLAGS)
  $(CXXOBJS): .CXXFLAGS
  .CXXFLAGS: ALWAYS

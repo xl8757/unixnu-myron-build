@@ -1,0 +1,55 @@
+# Resolved git sources, written by "unixnu fetch". Local sources are never recorded.
+
+[source."ArmCpu"]
+commit = "9066b53bbc82e92a98ec44a11dd50fd13eaf1a1b"
+
+[source."ArmDTPlatform"]
+commit = "417ff95d6a6e8607ddea9309ec45c3bfd4a67c60"
+
+[source."AvailabilityVersions"]
+commit = "933f9360f1b70dfbda5548386a3d65e0358b4f7d"
+
+[source."DarwinBoot"]
+commit = "3325e352d7df68a9f9ad74832ed94a6acbbd7390"
+
+[source."GopFramebuffer"]
+commit = "cf3b42979a9c44219e7bb149543e6fc3388b58ed"
+
+[source."IOStorageFamily"]
+commit = "e45fbe30a7879e0b16e26dddb78538f1b00e0bff"
+
+[source."ShengUfs"]
+commit = "e2b32cc429e8cf1501161c1d8c517f8994ceb9b2"
+
+[source."SoftwareAES"]
+commit = "4a45326da5c2cd6fe6813d79ee43db20805628af"
+
+[source."VerifiedRoot"]
+commit = "def026642c6c6e71be0dea267d989df1d29ddc64"
+
+[source."VirtioMmioBlock"]
+commit = "8ee3a5ab5a3726b0641990228346aec338246eaf"
+
+[source."XnuPrelink"]
+commit = "f876e3ee62e18fc06653dd75ed7dafcfb3950ac0"
+
+[source."corecrypto-2023"]
+commit = "11fba65b12d8830630e248dfa8344caf8b065f26"
+
+[source."edk2"]
+commit = "cfb93724a06ff86ff5ba971413368a7809ee42a5"
+
+[source."libdispatch"]
+commit = "30fe6a7d945340ce69cef121132f049e810089a5"
+
+[source."libplatform"]
+commit = "a00a4cc36da2110578bcf3b8eeeeb93dcc7f4e11"
+
+[source."libpthread"]
+commit = "c0e60fb5ecfc54cf379c261d3f9572cc22ded891"
+
+[source."sm8550"]
+commit = "23b2049fcd9e30356161def84231334fb55ecca9"
+
+[source."xnu"]
+commit = "1b191cb58250d0705d8a51287127505aa4bc0789"

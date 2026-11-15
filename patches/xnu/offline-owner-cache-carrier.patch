@@ -1,6 +1,8 @@
+diff --git a/bsd/vm/vm_unix.c b/bsd/vm/vm_unix.c
+index 60c8b9e..f689e42 100644
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
-@@ -2225,6 +2225,65 @@
+@@ -2198,6 +2198,65 @@ static void shared_region_map_and_slide_cleanup(
  	struct _sr_file_mappings *sr_file_mappings,
  	struct vm_shared_region  *shared_region);
  
@@ -66,7 +68,7 @@
  /*
   * Setup part of _shared_region_map_and_slide().
   * It had to be broken out of _shared_region_map_and_slide() to
-@@ -2557,7 +2616,13 @@
+@@ -2530,7 +2589,13 @@ after_root_check:
  		 * is either on the root volume or in the preboot cryptex volume.
  		 */
  		assert(rdir_vp != NULL);
@@ -80,7 +82,7 @@
  			vnode_t preboot_vp = NULL;
  #if XNU_TARGET_OS_OSX
  #define PREBOOT_CRYPTEX_PATH "/System/Volumes/Preboot/Cryptexes"
-@@ -2565,7 +2630,11 @@
+@@ -2538,7 +2603,11 @@ after_root_check:
  #define PREBOOT_CRYPTEX_PATH "/private/preboot/Cryptexes"
  #endif
  			error = vnode_lookup(PREBOOT_CRYPTEX_PATH, 0, &preboot_vp, vfs_context_current());
@@ -93,7 +95,7 @@
  				SHARED_REGION_TRACE_ERROR(
  					("shared_region: %p [%d(%s)] map(%p:'%s'): "
  					"not on process' root volume nor preboot volume\n",
-@@ -2584,7 +2653,11 @@
+@@ -2557,7 +2626,11 @@ after_root_check:
  		}
  #endif /* CONFIG_CSR */
  

@@ -1,8 +1,8 @@
 diff --git a/iokit/Kernel/IOUserClient.cpp b/iokit/Kernel/IOUserClient.cpp
-index e7d6592..f940ab2 100644
+index adfb3d1..b1a5949 100644
 --- a/iokit/Kernel/IOUserClient.cpp
 +++ b/iokit/Kernel/IOUserClient.cpp
-@@ -4325,6 +4325,36 @@ is_io_service_set_authorization_id(
+@@ -4221,6 +4221,36 @@ is_io_service_set_authorization_id(
  }
  
  /* Routine io_service_open_ndr */
@@ -39,7 +39,7 @@ index e7d6592..f940ab2 100644
  kern_return_t
  is_io_service_open_extended(
  	io_object_t _service,
-@@ -4353,7 +4383,7 @@ is_io_service_open_extended(
+@@ -4249,7 +4279,7 @@ is_io_service_open_extended(
  	}
  
  #if CONFIG_MACF
@@ -48,7 +48,7 @@ index e7d6592..f940ab2 100644
  		return kIOReturnNotPermitted;
  	}
  #endif
-@@ -4512,7 +4542,9 @@ is_io_service_open_extended(
+@@ -4408,7 +4438,9 @@ is_io_service_open_extended(
  				res = kIOReturnNotPrivileged;
  			}
  #if CONFIG_MACF
@@ -59,7 +59,7 @@ index e7d6592..f940ab2 100644
  				IOLog("IOUC %s failed MACF in process %s\n",
  				    client->getMetaClass()->getClassName(), creatorNameCStr);
  				res = kIOReturnNotPermitted;
-@@ -4520,6 +4552,7 @@ is_io_service_open_extended(
+@@ -4416,6 +4448,7 @@ is_io_service_open_extended(
  #endif
  
  			if ((kIOReturnSuccess == res)

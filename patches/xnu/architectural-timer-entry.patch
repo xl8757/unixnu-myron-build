@@ -1,6 +1,8 @@
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index 1ad4d9e..0fa9d66 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -697,7 +697,7 @@
+@@ -688,7 +688,7 @@ common_start:
  	dsb		ish
  
  

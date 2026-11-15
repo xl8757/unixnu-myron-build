@@ -1,10 +1,11 @@
+diff --git a/osfmk/kern/zalloc.c b/osfmk/kern/zalloc.c
+index be8be8a..e682bde 100644
 --- a/osfmk/kern/zalloc.c
 +++ b/osfmk/kern/zalloc.c
-@@ -5629,6 +5629,91 @@
- 	}
+@@ -5461,6 +5461,91 @@ pgz_init(void)
  }
  STARTUP(EARLY_BOOT, STARTUP_RANK_MIDDLE, pgz_init);
-+
+ 
 +#if (DEVELOPMENT || DEBUG) && defined(XNU_ZONE_PGZ_ALIGNMENT_PROBE) && XNU_ZONE_PGZ_ALIGNMENT_PROBE
 +volatile uint32_t native_zone_pgz_probe_case;
 +volatile uint32_t native_zone_pgz_probe_stage;
@@ -89,6 +90,7 @@
 +}
 +STARTUP(EARLY_BOOT, STARTUP_RANK_LAST, native_zone_pgz_alignment_probe);
 +#endif
- 
++
  static void
  panic_display_pgz_bt(bool has_syms, uint32_t slot, bool free)
+ {

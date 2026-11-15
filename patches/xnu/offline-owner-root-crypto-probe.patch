@@ -1,6 +1,8 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index dfa7276..7805152 100644
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
-@@ -834,6 +834,15 @@
+@@ -890,6 +890,15 @@ bsd_init(void)
  
  	bsd_init_kprintf("calling sysctl_mib_init\n");
  	sysctl_mib_init();

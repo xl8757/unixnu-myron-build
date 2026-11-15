@@ -1,50 +1,11 @@
-# Build outputs and caches (re-derivable; nothing important lives here)
+# Local overrides and generated output.
+/local.toml
 /build/
-/Build/
-/Conf/
 /out/
+
+# Proprietary firmware inputs are staged here, never committed.
 /.cache/
-/refer/
-/.local*/
-/Mu_Basecore/
 
-# Documentation site
-/docs/node_modules/
-/docs/.vitepress/dist/
-/docs/.vitepress/cache/
-
-# Local development files
-*.log
-*.terminal
-*.swp
-*.swo
-*~
-.DS_Store
-.vscode/
-.idea/
 __pycache__/
 *.pyc
-*.dSYM/
-
-# Inputs, images and products that never belong in Git
-*.ipsw
-*.dmg
-*.im4p
-*.img
-*.dbr
-*.macho
-*.o
-*.a
-*.dylib
-*.efi
-*.dtb
-*.bc
-*.spv
-*.metallib
-*.bin
-*.mbn
-*.fw
-*.pem
-*.key
-.env
-local.toml
+.DS_Store

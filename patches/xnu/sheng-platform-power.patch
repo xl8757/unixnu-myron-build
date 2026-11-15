@@ -1,7 +1,8 @@
 diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index 7805152..201050b 100644
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
-@@ -688,6 +688,11 @@
+@@ -766,6 +766,11 @@ bsd_init(void)
  	bsd_init_kprintf("calling bsd_bufferinit\n");
  	bsd_bufferinit();
  

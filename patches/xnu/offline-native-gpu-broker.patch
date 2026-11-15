@@ -1,6 +1,8 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index 0b84c13..60a30e3 100644
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
-@@ -912,6 +912,10 @@
+@@ -897,6 +897,10 @@ bsd_init(void)
  #if CONFIG_DTRACE
  	dtrace_postinit();
  #endif

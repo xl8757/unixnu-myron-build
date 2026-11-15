@@ -1,0 +1,19 @@
+# Menu and entry definitions for the payload FAT volume. package/ appears as
+# kits/nx769j in the assembled build tree.
+version = 1
+
+[boot]
+timeout = 3
+default = "xnu"
+
+[[entry]]
+id = "xnu"
+title = "nubia RedMagic 9 (NX769J) - Darwin XNU"
+type = "xnu"
+path = "Payloads/kernel.macho"
+
+[[entry]]
+id = "exit"
+title = "Return to firmware"
+type = "action"
+action = "exit"

@@ -1,0 +1,57 @@
+diff --git a/bsd/sys/mount.h b/bsd/sys/mount.h
+--- a/bsd/sys/mount.h
++++ b/bsd/sys/mount.h
+@@ -1279,6 +1279,13 @@
+  *  @return Mountpoint if found, else NULL.  Note unmounting mountpoints can be returned.
+  */
+ mount_t vfs_getvfs(fsid_t *fsid);
++/*
++ * Present in Apple iOS 16.7.16 (Darwin 22.6.0) but missing from the open
++ * source xnu-8796.141.3 drop; the APFS kext of that kernelcache binds a
++ * pointer to it. See the definition in bsd/vfs/vfs_subr.c.
++ */
++struct vfsops;
++mount_t vfs_getvfs_with_vfsops(fsid_t *fsid, const struct vfsops *vfsops);
+ 
+ /*!
+  *  @function vfs_mountedon
+diff --git a/bsd/vfs/vfs_subr.c b/bsd/vfs/vfs_subr.c
+--- a/bsd/vfs/vfs_subr.c
++++ b/bsd/vfs/vfs_subr.c
+@@ -1944,6 +1944,36 @@
+ {
+ 	return mount_list_lookupby_fsid(fsid, 0, 0);
+ }
++
++/*
++ * Lookup a mount point by filesystem identifier, requiring a given vfsops.
++ *
++ * Apple iOS 16.7.16 (Darwin 22.6.0, XNU 8796.142.1) exports this and the APFS
++ * kext of that kernelcache binds a pointer to it, so a port built from the
++ * open source xnu-8796.141.3 drop needs the symbol to exist. Recovered from
++ * the kernelcache at 0xfffffff00734c520: walk the mount list comparing both
++ * fsid words, then require mp->mnt_op == vfsops. Like vfs_getvfs() it
++ * returns without taking a reference.
++ */
++struct mount *
++vfs_getvfs_with_vfsops(fsid_t *fsid, const struct vfsops *vfsops)
++{
++	mount_t retmp = (mount_t)0;
++	mount_t mp;
++
++	mount_list_lock();
++	TAILQ_FOREACH(mp, &mountlist, mnt_list) {
++		if (mp->mnt_vfsstat.f_fsid.val[0] == fsid->val[0] &&
++		    mp->mnt_vfsstat.f_fsid.val[1] == fsid->val[1] &&
++		    mp->mnt_op == vfsops) {
++			retmp = mp;
++			break;
++		}
++	}
++	mount_list_unlock();
++
++	return retmp;
++}
+ 
+ static struct mount *
+ vfs_getvfs_locked(fsid_t *fsid)

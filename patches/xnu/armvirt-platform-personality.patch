@@ -1,5 +1,5 @@
 diff --git a/iokit/KernelConfigTables.cpp b/iokit/KernelConfigTables.cpp
-index 559a9db..080332e 100644
+index 2b14eda..0dc07de 100644
 --- a/iokit/KernelConfigTables.cpp
 +++ b/iokit/KernelConfigTables.cpp
 @@ -35,6 +35,23 @@

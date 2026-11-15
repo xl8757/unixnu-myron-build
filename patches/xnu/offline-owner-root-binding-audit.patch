@@ -1,6 +1,8 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index 60a30e3..dfa7276 100644
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
-@@ -987,9 +987,41 @@
+@@ -1031,9 +1031,41 @@ bsd_init(void)
  		if (require_rootauth) {
  			/* enforce sealedness */
  			int autherr = VNOP_IOCTL(rootvnode, FSIOC_KERNEL_ROOTAUTH, NULL, 0, vfs_context_kernel());
@@ -43,11 +45,10 @@
  		}
  	}
  
-@@ -1114,6 +1146,32 @@
- 
+@@ -1159,6 +1191,32 @@ bsd_init(void)
  	bsd_init_kprintf("done\n");
  }
-+
+ 
 +#if defined(XNU_OWNER_ROOT_AUDIT) && XNU_OWNER_ROOT_AUDIT
 +#if defined(XNU_OWNER_ROOT_TRUST) && XNU_OWNER_ROOT_TRUST
 +volatile int native_owner_root_trust_enabled = 1;
@@ -73,6 +74,7 @@
 +	__asm__ volatile("" : : "r"(apple), "r"(owner), "r"(device) : "memory");
 +}
 +#endif
- 
++
  void
  bsdinit_task(void)
+ {

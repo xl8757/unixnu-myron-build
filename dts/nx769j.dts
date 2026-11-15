@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// nubia RedMagic 9 series (NX769J, SM8650 "pineapple") board hardware.
+//
+// The included DTSI is sm8550.dtsi from the pinned UniXNU-sm8550-common source.
+// SM8650 has no UniXNU SoC repository yet, and the register map of every
+// resource used here is identical between the two parts:
+//
+//   resource      address / size            sm8650.dtsi      sm8550.dtsi
+//   GICD          0x17100000 / 0x10000      identical        identical
+//   GICR x 8      0x17180000 / 0x200000     identical        identical
+//   UFS host      0x01d84000 / 0x3000       identical        identical
+//   UFS PHY       0x01d80000 / 0x2000       identical        identical
+//   GPU           0x03d00000 / 0x40000      identical        identical
+//   GMU           0x03d6a000 / 0x35000      identical        identical
+//   GPU SMMU      0x03da0000 / 0x40000      identical        identical
+//   Apps SMMU     0x15000000 / 0x100000     identical        identical
+//
+// What does differ is the CPU cluster composition and the Adreno generation.
+// Both are overridden below; the GPU nodes stay disabled until the board has a
+// driver for Adreno 750.
+
+/dts-v1/;
+/include/ "sm8550.dtsi"
+
+/ {
+    model = "nubia RedMagic 9 Pro+ (NX769J)";
+    // Confirmed from the NX769J stock DTB overlay: compatible = "qcom,pineapple-qrd",
+    // "qcom,pineapple". The base board is the Qualcomm Pineapple QRD design.
+    compatible = "nubia,nx769j", "qcom,pineapple-qrd", "qcom,pineapple";
+
+    // DRAM handoff window, not the installed RAM. NX769J ships 8 to 24 GiB
+    // depending on SKU; 0x80000000 is the window the payload asks the firmware
+    // for (board.toml payload.dram_size) and matches the ports that have been
+    // verified on this SoC family. 0x80000000 is the ARM64 Qualcomm DRAM base.
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0 0x80000000 0 0x80000000>;
+    };
+
+    // Reservations measured on the device from
+    // /proc/device-tree/reserved-memory/splash_region (see device-inputs.md).
+    // The stock bootloader keeps this contiguous-splash region and hands it to
+    // the firmware. The node name and the cont_splash_region label follow the
+    // convention UniXNU-sheng uses; the region size 0x2b00000 is also the one
+    // sheng and shennong declare. Only the address is board specific.
+    //
+    // board.toml re-adds the same node to the boot image's device tree through
+    // a [[bootimg.dtb_node]] entry, which is what the stock bootloader reads.
+    reserved-memory {
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
+
+        splash_region: framebuffer@e3940000 {
+            label = "cont_splash_region";
+            reg = <0 0xe3940000 0 0x2b00000>;
+            no-map;
+        };
+    };
+};
+
+// SM8650 CPU clusters, from mainline sm8650.dtsi (u-boot/u-boot
+// dts/upstream/src/arm64/qcom/sm8650.dtsi). The MPIDR affinities are 0x100
+// apart and match the included DTSI, so only the compatible strings change.
+//
+//   cpu0-1  arm,cortex-a520   capacity-dmips-mhz 1024   efficiency cluster
+//   cpu2-6  arm,cortex-a720   capacity-dmips-mhz 2909   performance cluster
+//   cpu7    arm,cortex-x4     capacity-dmips-mhz 3591   prime core
+//
+// The GIC PPI partitions in sm8650.dtsi group them the same way: cluster 0 is
+// cpu0-1, cluster 1 is cpu2-6 and cluster 2 is cpu7.
+//
+// unixnu,cluster-type feeds the ADT. The scheduler runs the A520 pair as an E
+// cluster and the remaining six cores as a P cluster.
+//
+// The cpuN labels come from the included DTSI, so each block below merges into
+// the existing cpu@N node and replaces its `compatible`. The MPIDR affinities
+// are already correct and stay as the DTSI defines them.
+
+&cpu0 { compatible = "arm,cortex-a520";  unixnu,cluster-type = "E"; };
+&cpu1 { compatible = "arm,cortex-a520";  unixnu,cluster-type = "E"; };
+&cpu2 { compatible = "arm,cortex-a720";  unixnu,cluster-type = "P"; };
+&cpu3 { compatible = "arm,cortex-a720";  unixnu,cluster-type = "P"; };
+&cpu4 { compatible = "arm,cortex-a720";  unixnu,cluster-type = "P"; };
+&cpu5 { compatible = "arm,cortex-a720";  unixnu,cluster-type = "P"; };
+&cpu6 { compatible = "arm,cortex-a720";  unixnu,cluster-type = "P"; };
+&cpu7 { compatible = "arm,cortex-x4";    unixnu,cluster-type = "P"; };
+
+// UFS storage. ShengUfs drives the controller described by these nodes.
+// NX769J partitions userdata with f2fs (recovery.fstab: /data f2fs
+// /dev/block/bootdevice/by-name/userdata) on an A/B device.
+&ufs { status = "okay"; };
+&ufsphy { status = "okay"; };
+
+// Adreno 750 (qcom,adreno-43051401) with GMU qcom,adreno-gmu-750.1 stays
+// disabled: the catalog GPU stack targets Adreno 740 on SM8550 and no driver
+// has been qualified for this generation. Enable these nodes together with the
+// driver selection.
+// &gpu { status = "okay"; };
+// &gmu { status = "okay"; };
+// &gpu_smmu { status = "okay"; };

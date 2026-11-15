@@ -1,0 +1,117 @@
+# Required firmware inputs: relative path | source | SHA-256 | consumer
+#
+# The build tree links to .cache/firmware, so every tree and every rebuild uses
+# these files without copying them into the repository. Populate .cache/firmware
+# from this board's own firmware package and verify each hash before use.
+#
+# Hashes below were computed from the NX769J firmware copies published in
+# DarkestSpawn/device_NX769J at
+# https://github.com/DarkestSpawn/device_NX769J/tree/main/prebuilt/NX769J/vendor/firmware
+# (NX769J Android 14 vendor firmware). Re-verify against your own device
+# package before flashing anything.
+
+# --- Inputs required by the components selected in board.toml -----------------
+# None. ArmDTPlatform, ArmCpu, SoftwareAES, XnuPrelink, DarwinBoot, ShengUfs,
+# VirtioMmioBlock, VerifiedRoot and GopFramebuffer need no proprietary blob: UFS
+# is driven directly, GOP comes from the UEFI firmware and the rest are generic.
+# The IPSW members are pinned by hash in the OS profile.
+
+# --- Inputs required once the remaining areas are implemented ----------------
+
+# Touch controller: Goodix 9916R on NX769J. Needed by the Goodix input driver
+# that replaces the catalog's Novatek NT36532E driver.
+goodix_firmware_9916r.bin | DarkestSpawn/device_NX769J prebuilt/NX769J/vendor/firmware/goodix_firmware_9916r.bin | 5da4216a8c29f526d2167a0e21d0c7d1fa1614fa71b2b4e820dfc0294a25cf2c | input
+
+# Haptics: Awinic AW22xxx driver firmware.
+aw22xxx_fw.bin | DarkestSpawn/device_NX769J prebuilt/NX769J/vendor/firmware/aw22xxx_fw.bin | 38b4d30f6baffeff45474c8d8b95983629b6c1bd80665943ea142ece76053f94 | power
+haptic_ram.bin | DarkestSpawn/device_NX769J prebuilt/NX769J/vendor/firmware/haptic_ram.bin | 8286947193372ba10dc2c67ba5ac963f28da9e8d5f432625e9b014b797db4472 | power
+
+# SAR / proximity: Awinic AW9620x.
+aw9620x_fw_0.bin | DarkestSpawn/device_NX769J prebuilt/NX769J/vendor/firmware/aw9620x_fw_0.bin | 907f0c5a8f67c48e8a83c8d35cf32612799047caca334b35865a31ebf57ad2a3 | input
+aw9620x_reg_0.bin | DarkestSpawn/device_NX769J prebuilt/NX769J/vendor/firmware/aw9620x_reg_0.bin | c3cd1cc9e9636d844fbc7b248c9456ea13fcc5838cfd18ed6f4be03e0b30dff7 | input
+
+# --- Inputs still to be collected --------------------------------------------
+
+# Adreno 750 ZAP shader firmware and the GMU firmware set for
+# qcom,adreno-gmu-750.1. Not collected: no GPU driver is selected yet.
+# zap.mdt / zap.mbn / ... | <device firmware package> | <sha256> | gpu
+
+# WCN7850 (FastConnect 7800) ath12k firmware and board data. Not collected: the
+# catalog Wi-Fi transport does not match this OS profile.
+# amss.bin / m3.bin / board-2.bin / ... | <device firmware package> | <sha256> | network
+
+# The stock firmware DTB consumed by `unixnu bootimg`. It is the `dtb` field of
+# the device's vendor_boot, which is a separate partition and is not in the
+# public firmware dump. Extract it with:
+#   python3 scripts/extract-firmware-dtb.py --vendor-boot vendor_boot.img \
+#     --tree 2 -o Resources/DTBs/nx769j.dtb
+# Tree 2 is "Pineapple v2 SoC", the one this board matches by qcom,msm-id; all
+# four Pineapple trees carry the same reservation set, so the UEFI memory map
+# does not depend on the choice.
+# Resources/DTBs/nx769j.dtb | NX769J flash package Firmware/vendor_boot.img, tree 2 | f336a7d70c72b8d4ac9c02c843b58bb49111903da154b012f8ff3c26dc7d38c7 | firmware
+
+# --- UEFI firmware inputs, from the device flash package ------------------
+#
+# NX769J_HyperOS_4.0.0.10_A17_9.29/Firmware carries the two images the firmware
+# package and the boot image consume. Neither is redistributable.
+uefi.img | NX769J flash package Firmware/uefi.img | 862c3c1af2a19364213d11070ee72b371e55d2f2d5c073859599273a1900e804 | firmware
+vendor_boot.img | NX769J flash package Firmware/vendor_boot.img | 8bb1336cf6da36a8e8105ee11465747ac191ed9c018ba76e267e12f73b576906 | firmware
+
+# The 52 vendor UEFI DXE drivers the platform's Include/ files name. Each is a
+# PE32 section of a nested firmware volume inside uefi.img, pulled out with
+#   python3 scripts/extract-uefi-drivers.py --image uefi.img --layout <uefi checkout>
+# which also writes the EDK II INF wrapper and the depex beside each module.
+# The hash is of the extracted .efi, so a truncated or mismatched extraction is
+# caught here rather than halfway through an EDK II build.
+9d2e247b86bea48f56d6e0a8bc20617a89c608c59de31ebdde0112f089729241 | Binaries/nx769j/QcomPkg/Drivers/ButtonsDxe/ButtonsDxe.efi | scripts/extract-uefi-drivers.py | firmware
+061dad49fc41e883dcca55cd9096ba88323ab7aca9d27238760abc7670bf70bc | Binaries/nx769j/QcomPkg/Drivers/CPRDxe/CPRDxe.efi | scripts/extract-uefi-drivers.py | firmware
+734a451665f447677797723e9925c22f5977c6eb244125c9ffa93f0876541cda | Binaries/nx769j/QcomPkg/Drivers/ChargerExDxe/ChargerExDxe.efi | scripts/extract-uefi-drivers.py | firmware
+479e233b41fc07decc0240ada8ace16032d99ce9a4991a3d74e6a659ce6d71ec | Binaries/nx769j/QcomPkg/Drivers/ChipInfoDxe/ChipInfoDxe.efi | scripts/extract-uefi-drivers.py | firmware
+fa78164f95fceccc2a07ccd9085d9f3579d916e8d5e312924f334022fddaed7d | Binaries/nx769j/QcomPkg/Drivers/ClockDxe/ClockDxe.efi | scripts/extract-uefi-drivers.py | firmware
+4678ec20dbcbe332cdb73c1f594d0825d6d6fa3e49241e2444db25e8c86d18bc | Binaries/nx769j/QcomPkg/Drivers/CmdDbDxe/CmdDbDxe.efi | scripts/extract-uefi-drivers.py | firmware
+05822ffee40db1c9f1c858def111a8e0b309371ac975f776992028b0142e8d8f | Binaries/nx769j/QcomPkg/Drivers/DALSYSDxe/DALSYSDxe.efi | scripts/extract-uefi-drivers.py | firmware
+8e9f80adfd0497d6d9afb2aefe4f3d18a1dd3ac65d27e6c638eb56400450bf6e | Binaries/nx769j/QcomPkg/Drivers/DDRInfoDxe/DDRInfoDxe.efi | scripts/extract-uefi-drivers.py | firmware
+ac19d4d8631787b17e11cc125e9b1e168adfd3606bcc2aeb6e99d83a27521dd2 | Binaries/nx769j/QcomPkg/Drivers/DisplayDxe/DisplayDxe.efi | scripts/extract-uefi-drivers.py | firmware
+6e707343f2704f0ffd3101a2034a82aa88e69c43d63be104f3d9695a4632ed6a | Binaries/nx769j/QcomPkg/Drivers/EnvDxe/EnvDxe.efi | scripts/extract-uefi-drivers.py | firmware
+e6cebd081af37e16ff315ff808f98db50abe69101308487ebbc2323f0429e1c9 | Binaries/nx769j/QcomPkg/Drivers/FeatureEnablerDxe/FeatureEnablerDxe.efi | scripts/extract-uefi-drivers.py | firmware
+ce7d158f43525478768844600b87188e5b20af5174c68ffa3228b9c9b074a531 | Binaries/nx769j/QcomPkg/Drivers/GLinkDxe/GLinkDxe.efi | scripts/extract-uefi-drivers.py | firmware
+bc398afe8770a39fd68112375ed062358a228ddda9b4f36f36b2ae0a49856eee | Binaries/nx769j/QcomPkg/Drivers/GpiDxe/GpiDxe.efi | scripts/extract-uefi-drivers.py | firmware
+058514c0832aeedcdae40d7ccd9efed1799e80890513c32e2ea3a0c292614ea3 | Binaries/nx769j/QcomPkg/Drivers/HALIOMMUDxe/HALIOMMUDxe.efi | scripts/extract-uefi-drivers.py | firmware
+5d242af9311b6668d688507bf8b17e4122e680f8af609ce1d9576a9ad199ebf9 | Binaries/nx769j/QcomPkg/Drivers/HWIODxe/HWIODxe.efi | scripts/extract-uefi-drivers.py | firmware
+4380f624a32df64f5ec87a396e031c07f3e00ab2c401790123a971cde9d8921c | Binaries/nx769j/QcomPkg/Drivers/I2CDxe/I2CDxe.efi | scripts/extract-uefi-drivers.py | firmware
+f34eda23114b0bfcd0d00e15dd1898847f3869de794ee43113d99a9443a46dd6 | Binaries/nx769j/QcomPkg/Drivers/ICBDxe/ICBDxe.efi | scripts/extract-uefi-drivers.py | firmware
+d75b928a486a7391ad237750aad30e679f7e014f0a5fe4738debd0db40d656a9 | Binaries/nx769j/QcomPkg/Drivers/IPCCDxe/IPCCDxe.efi | scripts/extract-uefi-drivers.py | firmware
+c7cc3add4b05763878e2bee68e849f708575cc14d2046256051f62ff9602cd2e | Binaries/nx769j/QcomPkg/Drivers/LimitsDxe/LimitsDxe.efi | scripts/extract-uefi-drivers.py | firmware
+85077d7378ec02af622a70bae923ba95b544ec332842b3a615be35b61a0b629a | Binaries/nx769j/QcomPkg/Drivers/NpaDxe/NpaDxe.efi | scripts/extract-uefi-drivers.py | firmware
+22f621add8f144480157eb4edb541f21b3be54493fbda253ebb0b7e71340d40f | Binaries/nx769j/QcomPkg/Drivers/PILDxe/PILDxe.efi | scripts/extract-uefi-drivers.py | firmware
+d5a8c86cf6f860d8092a7d57d2b8270dba2284952098cbad3082344dad86dc6d | Binaries/nx769j/QcomPkg/Drivers/PILProxyDxe/PILProxyDxe.efi | scripts/extract-uefi-drivers.py | firmware
+f31390de29625cf264f8789d0d819288859d2689bcdf2479a618da3496eb4d7a | Binaries/nx769j/QcomPkg/Drivers/PlatformInfoDxe/PlatformInfoDxe.efi | scripts/extract-uefi-drivers.py | firmware
+45fb58123670d026ca0491c9b552ef3a157d3e369729f2352fb2696a6de64648 | Binaries/nx769j/QcomPkg/Drivers/PmicDxe/PmicDxeLa.efi | scripts/extract-uefi-drivers.py | firmware
+44ec640e8fa81281a87b23d408b2fbb8d2263249cdd082af6a0cb281a1d2ef6b | Binaries/nx769j/QcomPkg/Drivers/PmicGlinkDxe/PmicGlinkDxe.efi | scripts/extract-uefi-drivers.py | firmware
+a0f354ede4cede08a196cbe33f1acf31f764431723b4578d6ecb662c7c88aae8 | Binaries/nx769j/QcomPkg/Drivers/PwrUtilsDxe/PwrUtilsDxe.efi | scripts/extract-uefi-drivers.py | firmware
+7bb739835e38ee40b8c1251b3de6ae00ba087ed3fb9fb5b142295f9d5ac1a138 | Binaries/nx769j/QcomPkg/Drivers/QcomChargerDxe/QcomChargerDxeLA.efi | scripts/extract-uefi-drivers.py | firmware
+fade16dfd3a666f0fffc401842289c62d2960b1f6bdbf97bb98392cfb0483ceb | Binaries/nx769j/QcomPkg/Drivers/RNGDxe/RngDxe.efi | scripts/extract-uefi-drivers.py | firmware
+b9ad6b950fc20ba2a4eeba783b75d5162245e13db3216a2078ce57650096b573 | Binaries/nx769j/QcomPkg/Drivers/RpmhDxe/RpmhDxe.efi | scripts/extract-uefi-drivers.py | firmware
+130fe1f8c7e45669ad1cdc682ebf4dffbb35c8e03f13932bdec1ebd4242972cb | Binaries/nx769j/QcomPkg/Drivers/RscDxe/RscDxe.efi | scripts/extract-uefi-drivers.py | firmware
+fe3c6fcf7fc1e529c7a9780910900db9fa1615923d1860528aafdfb6b6fae836 | Binaries/nx769j/QcomPkg/Drivers/SPIDxe/SPIDxe.efi | scripts/extract-uefi-drivers.py | firmware
+4f73c60849652d3bb2e7b2dc7fc6999fbb73d7d7fa456dc2677ef026534a4c0c | Binaries/nx769j/QcomPkg/Drivers/SPMIDxe/SPMIDxe.efi | scripts/extract-uefi-drivers.py | firmware
+9113bfd248433f46ed0b8c0861a90b5fb0f00e90375e1a3a3096b018ee86fca8 | Binaries/nx769j/QcomPkg/Drivers/SPSSDxe/SPSSDxe.efi | scripts/extract-uefi-drivers.py | firmware
+3c11991ced02662212e7f7155aeb8cddfa528f557ac42828b53b864c5ef58bda | Binaries/nx769j/QcomPkg/Drivers/SdccDxe/SdccDxe.efi | scripts/extract-uefi-drivers.py | firmware
+d365ea3664ae960718bc70c434a3b303270a332e69787e27ce92675c6961c45a | Binaries/nx769j/QcomPkg/Drivers/ShmBridgeDxe/ShmBridgeDxeLA.efi | scripts/extract-uefi-drivers.py | firmware
+9a731f2c613fb1245eaafd5d16c79c0d812d72930bea1feadebb0bc16a008468 | Binaries/nx769j/QcomPkg/Drivers/SmemDxe/SmemDxe.efi | scripts/extract-uefi-drivers.py | firmware
+a24f67c022865b0e66fe90076516312aa9baf32e9084bea32402fa5fc19ee89f | Binaries/nx769j/QcomPkg/Drivers/TLMMDxe/TLMMDxe.efi | scripts/extract-uefi-drivers.py | firmware
+6cad9738b8357fc2598cc6663d3242b11937d2362bbdaf9b5aef01b98fea4f1b | Binaries/nx769j/QcomPkg/Drivers/TsensDxe/TsensDxe.efi | scripts/extract-uefi-drivers.py | firmware
+193ff793eab9ec1be1c99986c973d0b4d026cb433748f4587ea715c70fefad98 | Binaries/nx769j/QcomPkg/Drivers/TzDxe/ScmDxeCompat.efi | scripts/extract-uefi-drivers.py | firmware
+8792afa63be667c15f349c5b4b1cf78c4984ea9566f33d11fa6a0185178fb69a | Binaries/nx769j/QcomPkg/Drivers/TzDxe/TzDxeLA.efi | scripts/extract-uefi-drivers.py | firmware
+e91db5be80159bc40726fe7a226fa9800bdd153558c0afda533dc81c76cadcb2 | Binaries/nx769j/QcomPkg/Drivers/UCDxe/UCDxe.efi | scripts/extract-uefi-drivers.py | firmware
+41b46bbea1bb6a3531306d9125b3849e311ff87c0c37e4561f97e826a921b2b7 | Binaries/nx769j/QcomPkg/Drivers/UFSDxe/UFSDxe.efi | scripts/extract-uefi-drivers.py | firmware
+ddd2746026f66c21aacdee2f40daaf64697c9ed803b727c97cdd2165613f3fde | Binaries/nx769j/QcomPkg/Drivers/ULogDxe/ULogDxe.efi | scripts/extract-uefi-drivers.py | firmware
+e593dbe5c198662ef223caf4190956efd2f8061e54f696a7dac09d013f3b4d4b | Binaries/nx769j/QcomPkg/Drivers/UsbConfigDxe/UsbConfigDxe.efi | scripts/extract-uefi-drivers.py | firmware
+7a1e1c8a684a8f227825d7d8894a431cc14929b6fd2cf2b42d8fa9026ff598f5 | Binaries/nx769j/QcomPkg/Drivers/UsbDeviceDxe/UsbDeviceDxe.efi | scripts/extract-uefi-drivers.py | firmware
+b759543266691d7faf97869dc659d85393b24b67399672237841f5ce9f5d9b0f | Binaries/nx769j/QcomPkg/Drivers/UsbInitDxe/UsbInitDxe.efi | scripts/extract-uefi-drivers.py | firmware
+ec18ce57572d523945dea5bb9ac3fe25383e3b65479d5adde125bb177b9b639d | Binaries/nx769j/QcomPkg/Drivers/UsbMsdDxe/UsbMsdDxe.efi | scripts/extract-uefi-drivers.py | firmware
+4cf75d18dd1bde2c6e5381c99e1ef0c48da616e4fc675eb4e5c8176aaa1490e7 | Binaries/nx769j/QcomPkg/Drivers/UsbPwrCtrlDxe/UsbPwrCtrlDxe.efi | scripts/extract-uefi-drivers.py | firmware
+527ec86c5d31a20c6eef46399d979d34a03dd54b8ffbb462d41f6887a38f568a | Binaries/nx769j/QcomPkg/Drivers/UsbfnDwc3Dxe/UsbfnDwc3Dxe.efi | scripts/extract-uefi-drivers.py | firmware
+57657f5de2b79c1022f4093cf5604400e2718d2f3ee9fb5da6859a5af904c4e7 | Binaries/nx769j/QcomPkg/Drivers/VcsDxe/VcsDxe.efi | scripts/extract-uefi-drivers.py | firmware
+2cab39247fb7a4df3a80e38900118d0d5ff67f144ae6f96deffeaddb7afbfc79 | Binaries/nx769j/QcomPkg/Drivers/XhciDxe/XhciDxe.efi | scripts/extract-uefi-drivers.py | firmware
+4d6f28589de438aaf3ebb4d3c93b0368719c2e480617420fa70bca3d05a6fb43 | Binaries/nx769j/QcomPkg/Drivers/XhciPciEmulationDxe/XhciPciEmulationDxe.efi | scripts/extract-uefi-drivers.py | firmware

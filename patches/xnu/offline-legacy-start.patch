@@ -1,6 +1,8 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index 65bb68f..0b84c13 100644
 --- a/bsd/kern/bsd_init.c
 +++ b/bsd/kern/bsd_init.c
-@@ -1282,7 +1282,15 @@ bsd_autoconf(void)
+@@ -1202,7 +1202,15 @@ bsd_autoconf(void)
  		}
  	}
  

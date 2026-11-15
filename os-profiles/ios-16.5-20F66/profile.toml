@@ -1,0 +1,246 @@
+# iOS 16.5 OS profile for UniXNU.
+#
+# Target: iOS 16.5 (build 20F66), Darwin 22.5.0, XNU 8796.
+# Identity: iPhone X (iPhone10,3 / D22AP).
+#
+# This profile belongs at UniXNU/profiles/os/ios-16.5-20F66/. It is kept in the
+# device repository until it is contributed to UniXNU; the Build workflow
+# installs it into the UniXNU checkout before resolving. See README.md.
+#
+# XNU 8796 is the iOS 16 kernel. The open-source releases of the 8796 train are
+# xnu-8796.101.5, xnu-8796.121.2 and xnu-8796.141.3; xnu-8796.101.5 is the
+# earliest and is the closest drop to Darwin 22.5.0, so it is the baseline here.
+# The community iOS 16 ports (dipa-studio/ios-sweet and the ios-topaz family)
+# build the same train.
+#
+# The IPSW-derived values below were read out of
+# iPhone10,3,iPhone10,6_16.5_20F66_Restore.ipsw with
+# scripts/extract-ipsw-pins.py, which reproduces every one of them. The kexts
+# carry CFBundleVersion 22.5.0, which independently confirms the Darwin version.
+
+["os"]
+"name" = "ios-16.5-20F66"
+"darwin" = "22.5.0"
+"xnu_version" = "8796.101.5"
+"xnu_revision" = "aca3beaa3dfbd42498b42c5e5ce20a938e6554e5"
+"driverkit_tag" = "xnu-8796.101.5"
+"trustcache_tag" = "xnu-8796.101.5"
+"abi" = ["IOGPUFamily", "IOHIDFamily-2031.120.4", "IOMobileGraphicsFamily"]
+
+
+["ipsw"]
+# The restore image is not redistributable. The value is the member name so the
+# entry is self-identifying; point the build at a local copy with --ipsw or
+# UNIXNU_IPSW. Apple names the file
+# iPhone10,3,iPhone10,6_16.5_20F66_Restore.ipsw.
+"url" = "iPhone10,3,iPhone10,6_16.5_20F66_Restore.ipsw"
+"product" = "iPhone10,3"
+"version" = "16.5"
+"build" = "20F66"
+"device_class" = "d22ap"
+# BuildManifest BuildIdentities for d22ap: ApChipID 0x8015, ApBoardID 0x06.
+# Restore.plist DeviceMap agrees: BDID 6, BoardConfig d22ap, CPID 32789,
+# Platform t8015, SDOM 1. d221ap (iPhone10,6) uses ApBoardID 0x0E instead.
+"chip_id" = 32789
+"board_id" = 6
+"fetch" = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustCache"]
+
+["ipsw"."sha256"]
+# Member hashes pinned by member file name. These are the two disk images the
+# [userdata] windows consume: OS and Cryptex1,SystemOS. unixnu ipsw fetch
+# checks every extracted member against its pin.
+"096-04088-077.dmg" = "64354ba3475d3c34d6fc531f75585a7b24af0fdb7a3a8a2bdf95c7f351a3f290"
+"096-04666-078.dmg" = "2279bf443856fcb6a3f00b1fa06a32ba02a66fdf6ab6b12019462c7498aafdd3"
+
+
+["kernel"]
+
+["kernel"."prelink"]
+# A device wrapper rather than kits/XnuPrelink/emit_prelink.py directly: the
+# kit's known-literal-pool catalogue is per kernelcache and the entries shipped
+# with it belong to the iPadOS 17.7.11 image. The wrapper verifies this
+# kernelcache's Libm coefficient table against the image, records it, and runs
+# the kit's own tool unchanged. See scripts/emit-prelink-nx769j.py.
+"tool" = "scripts/emit-prelink-nx769j.py"
+# xnu-8796 links no .unstripped.noctf. Its MakeInc.kernel lists five primary
+# outputs -- .unstripped, the stripped kernel, .dSYM, .link and the static
+# archive -- and the .noctf variant UniXNU's scripts expect is a later XNU
+# naming. The raw linked kernel is this train's equivalent: it carries no CTF
+# section, so there is nothing to strip. Pointing at the name xnu-10063 uses
+# fails with "not found; run unixnu build kernel first" even after a clean link.
+"kernel" = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped"
+# sha256 of the decompressed arm64 kernelcache Mach-O, which is what
+# scripts/unixnu/ipsw.py writes to kernelcache.decompressed. The pipeline is
+# IMG4 payload -> LZFSE decode -> the single 0x0100000c fat slice, and the pin
+# covers that slice only. Hashing the whole fat image gives a different digest
+# and would fail the pin check.
+"kernelcache_sha256" = "e6fa75598f47b5a9460a60913e2ac8e4cd6cd60eb475bb31da65b68ffbcfdad5"
+"slide" = "-0x1000000"
+# Unset: this hook has no measured address yet, and the value it wants is not
+# the one scripts/extract-ipsw-pins.py used to emit.
+#
+# The contract is in patches/xnu/xnu-8796.101.5-security-init.patch: OSKext::
+# start reads an _NativePrelinkEarlySecurityInit OSNumber from the kext, adds
+# vm_kernel_slide, checks the result is 4-aligned and inside a read-execute,
+# non-writable segment of that module, and calls it as void(void) before MAC
+# policy lockdown. emit_prelink.py enforces the same shape, so the value is an
+# unslid function address inside the module's __TEXT_EXEC.
+#
+# 0xfffffff004e2b640 is AppleMobileFileIntegrity's _PrelinkExecutableLoadAddr,
+# which is its __TEXT -- the kmod stub, r-- and not executable. Passing it fails
+# with "Early security initializer outside original module code", correctly.
+# The function that actually has to run is inside the module's __TEXT_EXEC at
+# 0xfffffff0056fe000..0xfffffff00571b764, and identifying which one is a
+# reversing task, not a field lookup. Until it is measured, leave this unset and
+# let emit_prelink skip the path: AMFI still starts through its ordinary start
+# routine, but the pre-lockdown call does not happen.
+#
+# The iPadOS 17.7.11 profile carries 0xfffffff005ab4ae0 for its own kernelcache.
+# Those addresses are version bound and must not be copied between profiles.
+# "early_security_init" = "com.apple.driver.AppleMobileFileIntegrity=<unslid __TEXT_EXEC address>"
+# Bundle identifiers kept from this kernelcache. Every entry below is present in
+# the iOS 16.5 kernelcache's __PRELINK_INFO. The iPadOS 17.7.11 list also keeps
+# com.apple.iokit.IOHIDEventDriver, which this kernelcache does not contain.
+"roots" = [
+  "com.apple.AppleFSCompression.AppleFSCompressionTypeZlib",
+  "com.apple.driver.AppleARMPlatform",
+  "com.apple.driver.AppleARMWatchdogTimer",
+  "com.apple.driver.AppleAudioClockLibs",
+  "com.apple.driver.AppleEffaceableStorage",
+  "com.apple.driver.AppleIISController",
+  "com.apple.driver.AppleM2ScalerCSCDriver",
+  "com.apple.driver.AppleMobileFileIntegrity",
+  "com.apple.driver.ApplePMGR",
+  "com.apple.driver.IODARTFamily",
+  "com.apple.filesystems.apfs",
+  "com.apple.iokit.CoreAnalyticsFamily",
+  "com.apple.iokit.IOAVFamily",
+  "com.apple.iokit.IOAudio2Family",
+  "com.apple.iokit.IOCECFamily",
+  "com.apple.iokit.IOCryptoAcceleratorFamily",
+  "com.apple.iokit.IOGPUFamily",
+  "com.apple.iokit.IOHDCPFamily",
+  "com.apple.iokit.IOHIDFamily",
+  "com.apple.iokit.IOMobileGraphicsFamily",
+  "com.apple.iokit.IOReportFamily",
+  "com.apple.iokit.IOSlowAdaptiveClockingFamily",
+  "com.apple.iokit.IOStorageFamily",
+  "com.apple.iokit.IOSurface",
+  "com.apple.kec.Libm",
+  "com.apple.kec.corecrypto",
+  "com.apple.kext.AppleMatch",
+  "com.apple.kext.CoreTrust",
+  "com.apple.security.AppleImage4",
+  "com.apple.security.sandbox",
+]
+
+
+["payload"]
+# Fixups of signed text, carried in /chosen/text-fixups by
+# patches/xnu/native-text-fixup.patch. The format is
+#   name,offset,original-bytes,replacement-bytes   (see scripts/unixnu/payload.py)
+# for example dyld_shared_cache_arm64.15,421e8bc,28ad1bb0008544f9,c0035fd6008544f9
+# where c0035fd6 is `ret`: the entries disable code in a signed file after it has
+# passed signature validation, and only when the original bytes still match.
+#
+# Empty, and that is the honest state rather than an approval. No fixup has been
+# determined for this port: they are not derivable from the IPSW container, since
+# each one is a specific byte change in the dyld shared cache inside
+# 096-04088-077.dmg, chosen to bypass whatever turns out to be in the way. The
+# right time to add one is when a boot gets far enough to fail on one. An empty
+# list means "none needed yet", not "none will be".
+#
+# (A placeholder value here would only add a second failure to a payload step
+# that already stops for want of --unique-chip-id, and a fabricated string in a
+# config is worse than an honest empty list.)
+"text_fixups" = []
+# Trust cache bundle hashes this board accepts, checked against the file passed
+# with --trust-cache. These are the two trust caches shipped in the IPSW.
+"trust_cache_sha256" = [
+  "df0f60fd05b7c312ad0fddb5c85d8adf97b487e8500518337bc4cbde3ca73ea7",
+  "501fa23c4620e68e48b91bd2ba8d74251d4fbe37147290650cf717bbef619616",
+]
+
+
+["adt"]
+
+["adt"."root"]
+
+["adt"."root"."string"]
+"model" = "iPhone10,3"
+"target-type" = "D22"
+# The board name first: the audio server keys its routing database and
+# MediaExperience its per-board tables on it.
+"compatible" = "D22AP"
+
+
+["adt"."chosen"]
+
+["adt"."chosen"."string"]
+"osenvironment" = "main"
+"crypto-hash-method" = "sha2-384"
+
+
+["adt"."chosen"."u32"]
+"certificate-production-status" = 0
+"effective-production-status-ap" = 0
+"certificate-security-mode" = 1
+"effective-security-mode-sep" = 1
+"amfi-only-platform-code" = 1
+
+
+["adt"."product"]
+
+# The /product properties below are the real D22AP values, read from
+# Firmware/all_flash/DeviceTree.d22ap.im4p in the IPSW. The community iOS 16
+# ports take them the same way. Two of them correct values that would otherwise
+# be guessed from the iPadOS profile: artwork-device-subtype is 2436, the iPhone
+# X panel height, not the iPad's 2732; and kern.maxvnodes is 10000, not the
+# iPadOS 66560.
+["adt"."product"."string"]
+"product-name" = "iPhone X"
+"product-description" = "iPhone X"
+"artwork-device-idiom" = "phone"
+"artwork-display-gamut" = "P3"
+"compatible-device-fallback" = "iPhone9,2"
+"graphics-featureset-class" = "APPLE4"
+"graphics-featureset-fallbacks" = "APPLE3:APPLE3v1:APPLE2:APPLE1:GLES2,0"
+"wifi-chipset" = "4357"
+"baseband-chipset" = "mav17"
+
+
+["adt"."product"."u32"]
+"artwork-device-subtype" = 2436
+"artwork-scale-factor" = 3
+"device-perf-memory-class" = 4
+"oled-display" = 1
+"thin-bezel" = 1
+
+# MGGetProductType() looks this 20-byte id up in libMobileGestalt's product
+# table; without it every client that switches on the product type sees an
+# unknown device. Read from the real D22AP device tree in the IPSW.
+["adt"."product"."bytes"]
+"product-id" = "fd079b298144a7deb4d7c87fef3eb474d8f0e7eb"
+
+
+["adt"."buttons"]
+
+["adt"."buttons"."string"]
+"compatible" = "buttons"
+"device_type" = "buttons"
+
+["adt"."buttons"."strings"]
+"button-names" = ["volup", "voldown", "hold", "ringerab"]
+
+["adt"."buttons"."u32"]
+"home-button-type" = 2
+"button-priority_hold" = 1
+"button-priority_volup" = 2
+"button-priority_voldown" = 2
+"opposed-power-vol-buttons" = 1
+
+
+["adt"."defaults"]
+
+["adt"."defaults"."u32"]
+"kern.maxvnodes" = 10000

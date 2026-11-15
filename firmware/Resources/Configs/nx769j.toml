@@ -1,0 +1,53 @@
+#
+# NX769J (nubia RedMagic 9 series) — Mu-Silicium device configuration.
+#
+# Derived from Resources/Configs/nx729j.toml, the nubia RedMagic 8 Pro+
+# configuration in UniXNU/uefi-sheng, which boots on hardware. Values that this
+# board measures itself are marked; everything else is inherited from that
+# working configuration. docs/UEFI-FIRMWARE.md records the provenance of each
+# key and the values that are still open.
+#
+# The remaining boot_image keys (base, kernel_offset, tags_offset, pagesize) are
+# not set here. board.toml [bootimg.image] supplies them and unixnu bootimg
+# merges the two.
+#
+
+#
+# Boot Shim Configs
+#
+[boot_shim]
+requires_kernel_header = true
+
+#
+# UEFI FD Configs
+#
+# base and size are compiled into BootShim and checked again when the boot image
+# is packed. The stack sits at 0xA760D000 (PcdCPUCoresStackBase in the DSC),
+# just above a 0x300000 firmware volume here.
+#
+[uefi_fd]
+base = 0xA7100000
+size = 0x300000
+
+#
+# Android Boot Image Kernel Configs
+#
+[boot_image_kernel]
+kernel_compression = "gzip"
+append_dtb         = true
+
+#
+# Android Boot Image Configs
+#
+# NX769J is an Android 14 ABL board with BOARD_BOOTIMG_HEADER_VERSION := 4,
+# the same as nx729j. sheng and qrd8550 use 3 and 0 because their boot chains
+# are older.
+#
+# This is what the ABL requires, not what unixnu bootimg packs. bootimg.py
+# merges DEFAULTS, then this table, then board.toml [bootimg.image], so
+# board.toml wins: it records 0, because verify() only reads v0/v1/v2 headers
+# and a v4 image fails its round-trip check. board.toml explains that and what
+# to do if the ABL turns out to reject a v0 image.
+#
+[boot_image]
+header_version = 4
