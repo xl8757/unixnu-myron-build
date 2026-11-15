@@ -122,6 +122,9 @@
     cpus {
         #address-cells = <0x2>;
         #size-cells = <0x0>;
+        // Copied from the arm,armv8-timer clock-frequency below; the
+        // handoff DTS carries it here because XNU reads it from /cpus.
+        timebase-frequency = <0x124f800>;
         cpu@0 {
             device_type = "cpu";
             compatible = "arm,armv8";
