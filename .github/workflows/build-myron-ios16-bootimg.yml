@@ -37,7 +37,7 @@ jobs:
           git clone --depth 1 https://github.com/UniXNU/UniXNU.git unixnu
           git clone --depth 1 --branch device/myron-ios16 \
             https://github.com/xl8757/unixnu-myron-build.git device
-          git clone --depth 1 https://github.com/xl8757/myron-uefi.git uefi
+          git clone --depth 1 --branch ci/ufs-dtb https://github.com/xl8757/myron-uefi.git uefi
           cp -R device/os-profiles/ios-16.7.16-20H392 unixnu/profiles/os/
           git init -q Mu-Silicium
           git -C Mu-Silicium fetch --depth 1 \
@@ -66,6 +66,12 @@ jobs:
           curl -fSL -o SILICIUM_UEFI.fd "$url"
           ls -l SILICIUM_UEFI.fd
           shasum -a 256 SILICIUM_UEFI.fd | tee fd.sha256
+          # BootShim 的拷贝循环按 [uefi_fd] size 逐字节搬，卷比它大就只搬前半
+          # 段（8 MiB 卷被 3 MiB 配置截断，UFSDxe 之类的尾部模块全丢）。
+          want=$(python3 -c "import pathlib,tomllib;print(int(tomllib.loads(pathlib.Path('uefi/Resources/Configs/myron.toml').read_text())['uefi_fd']['size']))")
+          got=$(stat -f %z SILICIUM_UEFI.fd)
+          echo "FD $got bytes, uefi/Resources/Configs/myron.toml wants $want"
+          test "$got" -eq "$want" || { echo "::error title=fd size::the release ships $got bytes but the overlay config expects $want"; exit 1; }
 
       - name: Fetch the payload built by the payload workflow
         run: |
