@@ -72,5 +72,10 @@
     "status": "VERIFIED",
     "detail": "com.apple.kec.Libm __TEXT_EXEC (0xFFFFFFF005B8B000, 0x39E4) is entirely coefficient data: 99.0% of its words are plausible floats, 16-byte periodic records, 35% printable bytes. Four sub-ranges decode as ADRP and tripped instruction_inventory at 0xFFFFFFF005B8C1CC (CI run 43690798953). Pinned in scripts/emit-prelink-myron-ios16.py by prefix + exact sha256; only the inventory report changes, relocation still uses _PrelinkLinkKASLROffsets.",
     "evidence": "work/verify_libm_pools.py: stock pools -> ValueError at 0xfffffff005b8c1cc; with the four measured ranges -> OK, pc_relative_encodings_preserved = 236910, 13 known inline-data ranges. The five upstream pools also match inside this same segment, confirming it is the same Libm table with more entries."
+  },
+  {
+    "field": "payload.panic_screen",
+    "status": "OPEN",
+    "detail": "Disabled. --panic-screen requires Mu-Silicium Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h (scripts/patch-xnu-entry-probe.py:183). No public Mu-Silicium tree was reachable on 2026-11-15, so the flag is off and the entry-probe patch is skipped. Re-enable by wiring --uefi to a full checkout."
   }
 ]

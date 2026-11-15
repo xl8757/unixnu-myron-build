@@ -232,7 +232,13 @@ loader = "firmware"
 title = "myron iOS 16.7.16 bring-up"
 # Handoff window passed to the ADT tool, not the installed DRAM size.
 dram_size = "0x80000000"
-panic_screen = true
+# Disabled for the first bring-up build: patch-xnu-entry-probe.py --panic-screen
+# needs Mu-Silicium Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h,
+# and no public checkout of that tree is reachable (2026-11-15). With this false the
+# entry-probe patch is skipped entirely, so no stage bars either. Serial (-v serial=3)
+# and the firmware Advanced Logger remain the feedback channels. Re-enable once a
+# Mu-Silicium checkout is wired with --uefi.
+panic_screen = false
 # Adds a Tools entry to the generated boot menu, which is where AdvancedLogDxe
 # publishes the firmware log as QR codes. See docs/UEFI-FIRMWARE.md.
 tools = true
