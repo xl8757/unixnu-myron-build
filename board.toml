@@ -230,7 +230,14 @@ volume = "MYRONESP"
 size_mib = 208
 loader = "firmware"
 title = "myron iOS 16.7.16 bring-up"
-# Handoff window passed to the ADT tool, not the installed DRAM size.
+# DRAM range the ADT hands to XNU. The board has two non-contiguous banks, as
+# recorded from this unit's own boot log (myron-observed.json):
+#   0x80000000  + 0x80000000   (2 GiB)
+#   0x880000000 + 0x380000000  (14 GiB)
+# Only the first bank is declared, which is what the working iPadOS 17.7.11
+# configuration for this board does ("first DRAM bank; XNU only reports it").
+# dts/myron.dts /memory must carry exactly this range: devicetree.py refuses a
+# mismatch, and the static DTB's placeholder reg is replaced for that reason.
 dram_size = "0x80000000"
 # Disabled for the first bring-up build: patch-xnu-entry-probe.py --panic-screen
 # needs Mu-Silicium Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h,
@@ -247,7 +254,12 @@ kernel_args = ["-v", "serial=3"]
 
 [payload.adt]
 chip_id = "207"
-owned_memory_size = "0x80000000"
+# DarwinBoot's handoff window size. 8 GiB matches the iPadOS 17.7.11 board that
+# reached SpringBoard on this phone: it is also DarwinBoot's maximum, and the
+# 4 KiB-page bootstrap page-table pool needs Apple's large-memory value (34
+# pages). The window lands in the second bank (0x880000000..0xC00000000), so
+# 8 GiB fits with room to spare.
+owned_memory_size = "0x200000000"
 # The APFS volume UUID inside the OS window. The UFS block class publishes the
 # window, the partition scheme publishes the volume and XNU matches it. This one
 # is read out of the OS window's own volume superblock by

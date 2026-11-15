@@ -12,6 +12,16 @@
 // REVIEW BEFORE A HARDWARE RUN: this is the FULL Android DTB, not the
 // small board DTS UniXNU ports usually ship. Compare /reserved-memory
 // with the UEFI memory map and confirm the bootimg splash_region node.
+//
+// One value is NOT byte-exact on purpose: the /memory reg. The static DTB
+// carries the placeholder <0x0 0x0 0x0 0x0> that ABL fills at boot, and
+// devicetree.py refuses a zero-size DRAM range. It is replaced below with
+// the first DRAM bank recorded from this unit's own boot log
+// (UniXNU-myron/scripts/data/myron-observed.json): the board has two
+// non-contiguous banks, 0x80000000+0x80000000 (2 GiB) and
+// 0x880000000+0x380000000 (14 GiB), and the working iPadOS 17.7.11 config
+// for this board passes the first bank only, so board.toml dram_size
+// matches it.
 
 /dts-v1/;
 
@@ -25,7 +35,9 @@
     qcom,board-id = <0x0 0x0>;
     memory {
         device_type = "memory";
-        reg = <0x0 0x0 0x0 0x0>;
+        // ABL fills this at boot; the value is the first DRAM bank from
+        // this unit's boot log, not a guess. See the header comment.
+        reg = <0x0 0x80000000 0x0 0x80000000>;
     };
     chosen {
         bootargs = "android_arch_task_struct_size=1024 cpufreq.default_governor=performance sysctl.kernel.sched_pelt_multiplier=4 no-steal-acc kpti=0 swiotlb=0 loop.max_part=7 irqaffinity=0-1 fw_devlink.strict=1 pcie_ports=compat pci-msm-drv.pcie_sm_regs=0x1D07000,0x1040,0x1048,0x3000,0x1 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 cgroup_disable=pressure sysctl.kernel.panic_on_rcu_stall=1 disable_dma32=on  restrict_cma_redirect=false can.stats_timer=0";

@@ -77,5 +77,10 @@
     "field": "payload.panic_screen",
     "status": "OPEN",
     "detail": "Disabled. --panic-screen requires Mu-Silicium Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h (scripts/patch-xnu-entry-probe.py:183). No public Mu-Silicium tree was reachable on 2026-11-15, so the flag is off and the entry-probe patch is skipped. Re-enable by wiring --uefi to a full checkout."
+  },
+  {
+    "field": "payload.adt.chip_id",
+    "status": "OPEN",
+    "detail": "board.toml keeps \"207\" (the value every board in the ecosystem uses, parsed as hex 0x207 by devicetree.py:313), while profiles/os/ios-16.7.16-20H392 declares \"chip_id\" = 32789 (0x8015 = A11) and the ipados-27 profile comments say the profile chip_id IS the board [payload.adt] chip_id. The tool performs no cross-check. Kept at the ecosystem value for the first boot; if XNU rejects the platform identity, this is the first value to reconcile."
   }
 ]
