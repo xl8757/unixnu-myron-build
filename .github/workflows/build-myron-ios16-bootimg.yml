@@ -105,8 +105,16 @@ jobs:
           # the ADT is built from the curated dts in the device repo, while the
           # bootloader needs the full stock DTB the firmware package ships.
           dtc -I dts -O dtb -o hardware.dtb device/dts/myron-handoff.dts
-          ls -l hardware.dtb uefi/Resources/DTBs/myron.dtb
-          shasum -a 256 uefi/Resources/DTBs/myron.dtb | tee dtb.sha256
+          # The stock DTB ships the UFS host and PHY as status="disabled"; Android's
+          # bootloader enables them in its own overlay and nothing does under UniXNU,
+          # which is why the 2026-11-15 run logged "Failed to Find UFS IORT Node!".
+          cp uefi/Resources/DTBs/myron.dtb myron-ufs.dtb
+          fdtput -t s myron-ufs.dtb /soc/ufshc@1d84000 status okay
+          fdtput -t s myron-ufs.dtb /soc/ufsphy_mem@1d80000 status okay
+          fdtget -t s myron-ufs.dtb /soc/ufshc@1d84000 status
+          fdtget -t s myron-ufs.dtb /soc/ufsphy_mem@1d80000 status
+          ls -l hardware.dtb myron-ufs.dtb
+          shasum -a 256 myron-ufs.dtb | tee dtb.sha256
 
       - name: Build the boot image
         id: bootimg
@@ -118,7 +126,7 @@ jobs:
           python3 unixnu bootimg -D ../device \
             --uefi ../Mu-Silicium \
             --fd ../SILICIUM_UEFI.fd \
-            --dtb ../uefi/Resources/DTBs/myron.dtb \
+            --dtb ../myron-ufs.dtb \
             --ramdisk "$RAMDISK_ARG"
           echo "== boot image =="
           find out -name 'boot.img' -o -name 'boot.json' | while read -r f; do ls -l "$f"; done
@@ -134,9 +142,9 @@ jobs:
           print(json.dumps(data, indent=2)[:2000])
           dtb = data.get('dtb_sha256')
           want = Path('dtb.sha256').read_text().split()[0]
+          print(f'dtb_sha256 {dtb} (UFS-enabled DTB {want})')
           if dtb != want:
-              raise SystemExit(f'FAIL: boot.json dtb_sha256 {dtb} != full DTB {want}')
-          print(f'dtb_sha256 matches the full stock DTB: {dtb[:16]}...')
+              raise SystemExit('FAIL: boot.json dtb_sha256 is not the UFS-enabled DTB')
           ramdisk = data.get('ramdisk_bytes') or 0
           print(f'ramdisk_bytes = {ramdisk}')
           if ramdisk == 0:
