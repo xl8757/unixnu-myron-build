@@ -268,6 +268,22 @@ jobs:
           DEVICE_DIR: ${{ github.workspace }}/device
         run: bash -euo pipefail -c "$PRE_BUILD"
 
+      - name: Reference kernel for the storage audit
+        if: contains(inputs.steps, 'kernel') || contains(inputs.steps, 'payload') || contains(inputs.steps, 'bootimg')
+        run: |
+          set -euo pipefail
+          echo "== reference kernel: build once without storage drivers for the ABI audit =="
+          ./unixnu defconfig songyuan_reference_defconfig -D "$GITHUB_WORKSPACE/device"
+          ./unixnu build kernel || true
+          test -f out/songyuan/kernel/kernel.macho
+          test -f out/songyuan/kernel/kernel.json
+          echo "== reference kernel ready: =="
+          ls -l out/songyuan/kernel/kernel.macho out/songyuan/kernel/kernel.json
+          echo "== clear the xnu object cache so the final pass rebuilds with archives =="
+          rm -rf out/songyuan/tree/build/xnu/ios-obj
+          echo "== restore the full configuration =="
+          ./unixnu defconfig "${{ inputs.defconfig }}" -D "$GITHUB_WORKSPACE/device"
+
       - name: Build kernel
         if: contains(inputs.steps, 'kernel') || contains(inputs.steps, 'payload') || contains(inputs.steps, 'bootimg')
         env:
