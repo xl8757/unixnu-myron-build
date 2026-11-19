@@ -269,7 +269,7 @@ jobs:
         run: bash -euo pipefail -c "$PRE_BUILD"
 
       - name: Reference kernel for the storage audit
-        if: contains(inputs.steps, 'kernel') || contains(inputs.steps, 'payload') || contains(inputs.steps, 'bootimg')
+        if: (contains(inputs.steps, 'kernel') || contains(inputs.steps, 'payload') || contains(inputs.steps, 'bootimg')) && !contains(inputs.defconfig, 'myron')
         run: |
           set -euo pipefail
           echo "== reference kernel: build once without storage drivers for the ABI audit =="
