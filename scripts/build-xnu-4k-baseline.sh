@@ -49,15 +49,17 @@ done
 export XNU_AVAILABILITY_PL=$ROOT/.cache/fakeroot/usr/local/libexec/availability.pl
 python3 scripts/prepare-xnu-source.py
 
-# Inject framebuffer VA=PA mapping (string replace, robust against patch line drift).
-# Harmless for all builds; needed by boot_progress C writes.
-python3 scripts/inject-framebuffer-map.py .cache/xnu-work/osfmk/arm64/start.s
 # The first pass of a new tree (XNU_BOOTSTRAP=1, set by the unixnu driver) only has to leave the compile records and
 # link.filelist for the archive builders that run after it, so it links without their archives.
 BOOTSTRAP=${XNU_BOOTSTRAP:-0}
 if [ "$BOOTSTRAP" != 0 ] && [ "$BOOTSTRAP" != 1 ]; then
   echo 'XNU_BOOTSTRAP must be 0 or 1' >&2
   exit 1
+fi
+if [ "$BOOTSTRAP" = 0 ]; then
+  # Inject framebuffer VA=PA mapping AFTER all patches are applied in the final pass.
+  # Doing this in the bootstrap pass would desync the second pass's patch re-apply.
+  python3 scripts/inject-framebuffer-map.py .cache/xnu-work/osfmk/arm64/start.s
 fi
 BOOT_PROGRESS=${XNU_BOOT_PROGRESS:-0}
 if [ "$BOOT_PROGRESS" != 0 ] && [ "$BOOT_PROGRESS" != 1 ]; then
