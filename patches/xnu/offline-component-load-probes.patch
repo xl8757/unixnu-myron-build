@@ -75,7 +75,7 @@
 +	int legacy_register = 0;
 +	if (native_mobile_graphics_load_status == 0 &&
 +	    PE_parse_boot_argn("offline-legacy-register", &legacy_register, sizeof(legacy_register)) && legacy_register) {
-+#if defined(XNU_NATIVE_LEGACY_DISPLAY) && XNU_NATIVE_LEGACY_DISPLAY
++#if 0 /* myron: no legacy display archive */
 +		extern void native_legacy_display_probe(void);
 +		native_legacy_display_probe();
 +#endif
@@ -181,7 +181,7 @@
 +	extern void native_mobile_display_provider_probe(void);
 +	native_mobile_display_provider_probe();
 +#endif
-+#if defined(XNU_NATIVE_LEGACY_DISPLAY) && XNU_NATIVE_LEGACY_DISPLAY
++#if 0 /* myron: no legacy display archive */
 +	extern void native_legacy_display_probe(void);
 +	native_legacy_display_probe();
 +#endif
