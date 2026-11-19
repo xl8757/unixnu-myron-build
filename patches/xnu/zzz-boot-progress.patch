@@ -347,3 +347,26 @@
  	if (p->p_crash_behavior != 0 || p == initproc) {
  		proc_handle_critical_exit(p, rv);
  	}
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -621,1 +621,20 @@
+ 	create_bootstrap_mapping x14, x15, x5, x3, x2, x9, x10, x11, x12, x13
++
++	/*
++	 * Map the framebuffer VA=PA as one 32MB block in the EXISTING V=P L2 table.
++	 * boot_progress C code writes 0xfc800000 with the MMU on; without this
++	 * descriptor those stores fault. Framebuffer and RAM share L1 index 0, so
++	 * another create_bootstrap_mapping would replace the RAM L2 table; instead
++	 * install a single TTE directly. All bring-up RAM is below 4GB so the V=P
++	 * L2 page is bootstrap_pagetables + 2*PGBYTES.
++	 * TTE 0x701 = valid | AF | outer-shareable | AttrIndx(0). Kept small so the
++	 * assembler immediate always fits in movz (no >16-bit macro expansion).
++	 */
++	MOV64	x10, 0xfc800000
++	MOV64	x11, 0x701
++	orr		x11, x11, x10
++	and		x12, x10, #(ARM_TT_L2_INDEX_MASK)
++	lsr		x12, x12, #(ARM_TT_L2_SHIFT)
++	add		x13, x25, #(2 * PGBYTES)
++	str		x11, [x13, x12, lsl #TTE_SHIFT]
++	dsb		ish
