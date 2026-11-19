@@ -349,19 +349,11 @@
  	}
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -621,1 +621,20 @@
+@@ -611,6 +611,16 @@ Lkernelcache_base_found:
+ 	lsr		x5,  x24, #(ARM_TT_L2_SHIFT)
  	create_bootstrap_mapping x14, x15, x5, x3, x2, x9, x10, x11, x12, x13
-+
-+	/*
-+	 * Map the framebuffer VA=PA as one 32MB block in the EXISTING V=P L2 table.
-+	 * boot_progress C code writes 0xfc800000 with the MMU on; without this
-+	 * descriptor those stores fault. Framebuffer and RAM share L1 index 0, so
-+	 * another create_bootstrap_mapping would replace the RAM L2 table; instead
-+	 * install a single TTE directly. All bring-up RAM is below 4GB so the V=P
-+	 * L2 page is bootstrap_pagetables + 2*PGBYTES.
-+	 * TTE 0x701 = valid | AF | outer-shareable | AttrIndx(0). Kept small so the
-+	 * assembler immediate always fits in movz (no >16-bit macro expansion).
-+	 */
+ 
++	/* Map framebuffer VA=PA in the existing V=P L2 table for boot_progress writes. */
 +	MOV64	x10, 0xfc800000
 +	MOV64	x11, 0x701
 +	orr		x11, x11, x10
@@ -370,3 +362,7 @@
 +	add		x13, x25, #(2 * PGBYTES)
 +	str		x11, [x13, x12, lsl #TTE_SHIFT]
 +	dsb		ish
++
+ 	/* Ensure TTEs are visible */
+ 	dsb		ish
+ 
